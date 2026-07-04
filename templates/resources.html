@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block title %}Resource Inventory{% endblock %}
+
+{% block content %}
+<!-- HEADER -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 text-gray-800 fw-bold">Resource Allocation & Stock</h1>
+        <p class="text-muted">Track available resources, manage categories, and audit allocations to community events.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addResourceModal">
+        <i class="bi bi-plus-circle-fill me-2"></i>Add Resource
+    </button>
+</div>
+
+<!-- Resource Cards Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="text-muted small fw-bold text-uppercase">Total Item Types</div>
+            <div class="fs-3 fw-bold text-teal mt-1" id="stat-total-types">{{ resources_list | length }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="text-muted small fw-bold text-uppercase">Total Stock Available</div>
+            <div class="fs-3 fw-bold text-primary mt-1" id="stat-total-available">
+                {{ resources_list | sum(attribute='quantity_available') }} Units
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="text-muted small fw-bold text-uppercase">Total Allocated</div>
+            <div class="fs-3 fw-bold text-warning mt-1" id="stat-total-allocated">
+                {{ resources_list | sum(attribute='quantity_allocated') }} Units
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="text-muted small fw-bold text-uppercase">Total Items Used</div>
+            <div class="fs-3 fw-bold text-indigo mt-1" id="stat-total-used">
+                {{ resources_list | sum(attribute='quantity_used') }} Units
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AJAX TOP ALERT CONTAINER -->
+<div id="ajax-alert-container"></div>
+
+<div class="row g-4 mb-4">
+    <!-- STOCK TABLE -->
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-bottom fw-bold"><i class="bi bi-box-seam me-2 text-teal"></i>Inventory Stock Register</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="resource-stock-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Resource Name</th>
+                                <th>Category</th>
+                                <th class="text-center">Available (A)</th>
+                                <th class="text-center">Allocated (B)</th>
+                                <th class="text-center">Used (C)</th>
+                                <th class="text-center">Remaining (A-B-C)</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if resources_list %}
+                                {% for res in resources_list %}
+                                <tr id="resource-row-{{ res.id }}">
+                                    <td class="ps-4"><strong id="row-name-{{ res.id }}">{{ res.name }}</strong></td>
+                                    <td><span class="badge bg-light text-secondary border small" id="row-cat-{{ res.id }}">{{ res.category }}</span></td>
+                                    <td class="text-center fw-semibold text-muted" id="row-avail-{{ res.id }}">{{ res.quantity_available }}</td>
+                                    <td class="text-center fw-semibold text-warning" id="row-alloc-{{ res.id }}">{{ res.quantity_allocated }}</td>
+                                    <td class="text-center fw-semibold text-indigo" id="row-used-{{ res.id }}">{{ res.quantity_used }}</td>
+                                    <td class="text-center" id="row-rem-cell-{{ res.id }}">
+                                        <span id="row-rem-{{ res.id }}" class="badge {% if res.remaining_quantity > 10 %}bg-success-subtle text-success{% elif res.remaining_quantity >= 0 %}bg-warning-subtle text-warning{% else %}bg-danger-subtle text-danger{% endif %} fw-bold fs-6">
+                                            {{ res.remaining_quantity }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group">
+                                            <button class="btn btn-outline-teal btn-sm" data-bs-toggle="modal" data-bs-target="#editResourceModal{{ res.id }}"><i class="bi bi-pencil"></i></button>
+                                            <form action="{{ url_for('delete_resource', id=res.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this resource? This removes all active event allocations too.');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">No resources registered. Add one using the top right button!</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RESOURCE ALLOCATION HISTORY -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent border-bottom py-3 d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="bi bi-clock-history me-2 text-indigo"></i>Resource Allocation History</span>
+    </div>
+    <div class="card-body p-3">
+        <form method="GET" action="{{ url_for('resources') }}" class="row g-2 align-items-center mb-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm" name="search_history" placeholder="Search resource or event name..." value="{{ search_history or '' }}">
+            </div>
+            <div class="col-md-3">
+                <select name="event_filter" class="form-select form-select-sm">
+                    <option value="">-- Filter by Event --</option>
+                    {% for ev in events_list %}
+                    <option value="{{ ev.id }}" {% if event_filter == ev.id|string %}selected{% endif %}>{{ ev.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="date" class="form-control form-control-sm" name="date_filter" value="{{ date_filter or '' }}">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+                <a href="{{ url_for('resources') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-counterclockwise"></i></a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Resource Name</th>
+                        <th>Event Name</th>
+                        <th class="text-center">Allocated Quantity</th>
+                        <th class="text-center">Date</th>
+                        <th class="text-end pe-3">Allocated By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if allocations_list %}
+                        {% for alloc in allocations_list %}
+                        <tr>
+                            <td class="ps-3"><strong>{{ alloc.resource.name }}</strong></td>
+                            <td><span class="text-dark fw-semibold">{{ alloc.event.name }}</span></td>
+                            <td class="text-center fw-bold text-primary">{{ alloc.quantity_allocated }}</td>
+                            <td class="text-center small text-muted">{{ alloc.allocated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="text-end pe-3"><span class="badge bg-light text-secondary border">{{ alloc.allocated_by or 'Admin' }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">No allocation history matching the filter criteria.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- EDIT MODALS (PLACED OUTSIDE TABLES FOR CLEAN BOOTSTRAP RENDER) -->
+<!-- ========================================================= -->
+{% if resources_list %}
+    {% for res in resources_list %}
+    <div class="modal fade" id="editResourceModal{{ res.id }}" tabindex="-1" aria-labelledby="editResourceModalLabel{{ res.id }}" aria-hidden="true" style="z-index: 1055;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold" id="editResourceModalLabel{{ res.id }}">Modify Resource Item</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="edit-resource-form-{{ res.id }}" action="{{ url_for('edit_resource', id=res.id) }}" method="POST" onsubmit="handleResourceEditSubmit(event, {{ res.id }})">
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <!-- Modal Alert Container -->
+                        <div id="modal-alert-{{ res.id }}" class="alert alert-danger d-none" role="alert"></div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Resource Name</label>
+                            <input type="text" class="form-control" id="edit-name-{{ res.id }}" name="name" value="{{ res.name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Category</label>
+                            <select class="form-select" id="edit-category-{{ res.id }}" name="category">
+                                <option value="Food" {% if res.category == 'Food' %}selected{% endif %}>Food</option>
+                                <option value="Clothes" {% if res.category == 'Clothes' %}selected{% endif %}>Clothes</option>
+                                <option value="Books" {% if res.category == 'Books' %}selected{% endif %}>Books</option>
+                                <option value="Medical Supplies" {% if res.category == 'Medical Supplies' %}selected{% endif %}>Medical Supplies</option>
+                                <option value="Educational Kits" {% if res.category == 'Educational Kits' %}selected{% endif %}>Educational Kits</option>
+                                <option value="Equipment" {% if res.category == 'Equipment' %}selected{% endif %}>Equipment</option>
+                                <option value="Other" {% if res.category == 'Other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Total Stock Quantity Available</label>
+                            <input type="number" class="form-control" id="edit-avail-{{ res.id }}" name="quantity_available" value="{{ res.quantity_available }}" min="0" step="1" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Allocated Quantity</label>
+                                <input type="number" class="form-control" id="edit-alloc-{{ res.id }}" name="quantity_allocated" value="{{ res.quantity_allocated }}" min="0" step="1" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Used Quantity</label>
+                                <input type="number" class="form-control" id="edit-used-{{ res.id }}" name="quantity_used" value="{{ res.quantity_used }}" min="0" step="1" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm" id="btn-save-{{ res.id }}">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- ADD RESOURCE MODAL -->
+<div class="modal fade" id="addResourceModal" tabindex="-1" aria-labelledby="addResourceModalLabel" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="addResourceModalLabel">Add New Resource Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('add_resource') }}" method="POST">
+                <div class="modal-body">
+                    {{ resource_form.csrf_token }}
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-semibold small">Resource Name</label>
+                        {{ resource_form.name(class="form-control", placeholder="e.g. Paracetamol Tablets") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label fw-semibold small">Category</label>
+                        {{ resource_form.category(class="form-select") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="quantity_available" class="form-label fw-semibold small">Total Stock Available</label>
+                        {{ resource_form.quantity_available(class="form-control", type="number", min="0", step="1") }}
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    {{ resource_form.submit(class="btn btn-primary btn-sm") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('action') === 'new') {
+        const addModalEl = document.getElementById('addResourceModal');
+        if (addModalEl) {
+            const addModal = new bootstrap.Modal(addModalEl);
+            addModal.show();
+        }
+    }
+
+    // Reset modal state and errors whenever any edit modal is hidden
+    document.querySelectorAll('.modal').forEach(function(modalEl) {
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            const alertEl = modalEl.querySelector('.alert');
+            if (alertEl) {
+                alertEl.classList.add('d-none');
+                alertEl.textContent = '';
+            }
+            // Ensure body scroll is unlocked cleanly
+            document.body.classList.remove('modal-open');
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(b => b.remove());
+        });
+    });
+});
+
+function handleResourceEditSubmit(event, resourceId) {
+    event.preventDefault();
+    const form = document.getElementById(`edit-resource-form-${resourceId}`);
+    const alertEl = document.getElementById(`modal-alert-${resourceId}`);
+    const submitBtn = document.getElementById(`btn-save-${resourceId}`);
+    
+    alertEl.classList.add('d-none');
+    alertEl.textContent = '';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+
+    const formData = new FormData(form);
+
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json().then(data => ({ status: response.status, body: data })))
+    .then(result => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+
+        if (result.body.success) {
+            const r = result.body.resource;
+            
+            // 1. Update row elements instantly
+            const nameEl = document.getElementById(`row-name-${resourceId}`);
+            const catEl = document.getElementById(`row-cat-${resourceId}`);
+            const availEl = document.getElementById(`row-avail-${resourceId}`);
+            const allocEl = document.getElementById(`row-alloc-${resourceId}`);
+            const usedEl = document.getElementById(`row-used-${resourceId}`);
+            const remEl = document.getElementById(`row-rem-${resourceId}`);
+
+            if (nameEl) nameEl.textContent = r.name;
+            if (catEl) catEl.textContent = r.category;
+            if (availEl) availEl.textContent = r.quantity_available;
+            if (allocEl) allocEl.textContent = r.quantity_allocated;
+            if (usedEl) usedEl.textContent = r.quantity_used;
+            if (remEl) {
+                remEl.textContent = r.remaining_quantity;
+                remEl.className = `badge ${r.remaining_quantity > 10 ? 'bg-success-subtle text-success' : (r.remaining_quantity >= 0 ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger')} fw-bold fs-6`;
+            }
+
+            // 2. Hide Modal cleanly
+            const modalEl = document.getElementById(`editResourceModal${resourceId}`);
+            const bsModal = bootstrap.Modal.getInstance(modalEl);
+            if (bsModal) {
+                bsModal.hide();
+            }
+
+            // 3. Show Top Success Alert
+            const alertContainer = document.getElementById('ajax-alert-container');
+            if (alertContainer) {
+                alertContainer.innerHTML = `
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>${result.body.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="this.parentElement.remove()"></button>
+                    </div>
+                `;
+            }
+            
+            // Recalculate total available stat
+            recalculateTotalStock();
+        } else {
+            // Show error inside modal
+            alertEl.textContent = result.body.message || 'Error updating resource.';
+            alertEl.classList.remove('d-none');
+        }
+    })
+    .catch(err => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+        alertEl.textContent = 'Network or server error occurred. Please try again.';
+        alertEl.classList.remove('d-none');
+    });
+}
+
+function recalculateTotalStock() {
+    let totalAvail = 0;
+    let totalAlloc = 0;
+    let totalUsed = 0;
+
+    document.querySelectorAll('[id^="row-avail-"]').forEach(el => {
+        totalAvail += parseInt(el.textContent) || 0;
+    });
+    document.querySelectorAll('[id^="row-alloc-"]').forEach(el => {
+        totalAlloc += parseInt(el.textContent) || 0;
+    });
+    document.querySelectorAll('[id^="row-used-"]').forEach(el => {
+        totalUsed += parseInt(el.textContent) || 0;
+    });
+
+    const statAvail = document.getElementById('stat-total-available');
+    const statAlloc = document.getElementById('stat-total-allocated');
+    const statUsed = document.getElementById('stat-total-used');
+
+    if (statAvail) statAvail.textContent = `${totalAvail} Units`;
+    if (statAlloc) statAlloc.textContent = `${totalAlloc} Units`;
+    if (statUsed) statUsed.textContent = `${totalUsed} Units`;
+}
+</script>
+{% endblock %}

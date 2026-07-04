@@ -1,0 +1,961 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Management - NGO Connect{% endblock %}
+
+{% block content %}
+<!-- Live Toast Alert Area -->
+<div id="liveAlertContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
+
+{% if current_user.role == 'admin' %}
+<!-- ADMIN VIEW: UNIFIED ATTENDANCE MANAGEMENT PORTAL -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 text-gray-800 fw-bold">Attendance Management</h1>
+        <p class="text-muted small mb-0">Manage QR check-ins, view live counter dashboard, check logs, analyze trends, and export reports.</p>
+    </div>
+    <div class="badge bg-teal-soft text-teal p-2 fs-6">
+        <i class="bi bi-clock-history me-1"></i> Live: <span id="lblTime">Active</span>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent border-bottom p-0">
+        <ul class="nav nav-tabs card-header-tabs border-bottom-0 mx-0 px-3" id="attendanceTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold py-3 text-teal" id="qr-tab" data-bs-toggle="tab" data-bs-target="#qr-pane" type="button" role="tab" aria-controls="qr-pane" aria-selected="true">
+                    <i class="bi bi-qr-code-scan me-1"></i>QR Check-In
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold py-3 text-teal" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard-pane" type="button" role="tab" aria-controls="dashboard-pane" aria-selected="false">
+                    <i class="bi bi-speedometer2 me-1"></i>Live Dashboard
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold py-3 text-teal" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-pane" type="button" role="tab" aria-controls="logs-pane" aria-selected="false">
+                    <i class="bi bi-clipboard-data me-1"></i>Attendance Logs
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold py-3 text-teal" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" type="button" role="tab" aria-controls="analytics-pane" aria-selected="false">
+                    <i class="bi bi-bar-chart-fill me-1"></i>Analytics
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold py-3 text-teal" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-pane" type="button" role="tab" aria-controls="reports-pane" aria-selected="false">
+                    <i class="bi bi-file-earmark-bar-graph me-1"></i>Reports & Export
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-4">
+        <div class="tab-content" id="attendanceTabsContent">
+            
+            <!-- TAB 1: QR CHECK-IN -->
+            <div class="tab-pane fade show active" id="qr-pane" role="tabpanel" aria-labelledby="qr-tab">
+                <div class="row g-4">
+                    <div class="col-md-7">
+                        <div class="card border-0 shadow-sm bg-light p-4 h-100">
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-gear-fill me-2 text-teal"></i>QR Generator Controller</h5>
+                            <p class="text-muted small">Select an upcoming event to configure and generate its check-in QR Code.</p>
+                            
+                            <div class="mb-4">
+                                <label for="qrEventSelector" class="form-label small fw-semibold text-secondary">Select Event</label>
+                                <select id="qrEventSelector" class="form-select border-secondary">
+                                    <option value="">-- Select Upcoming Event --</option>
+                                    {% for item in events_attendance %}
+                                        {% if item.event.status == 'Upcoming' %}
+                                        <option value="{{ item.event.id }}">{{ item.event.name }} ({{ item.event.date.strftime('%Y-%m-%d') }})</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div id="qrEventDetailsCard" class="card border-0 shadow-sm p-3 d-none">
+                                <h6 class="fw-bold text-teal mb-2" id="lblEventName">Event Name</h6>
+                                <div class="small mb-1"><i class="bi bi-calendar3 me-2 text-secondary"></i>Date: <span id="lblEventDate" class="text-dark">Date</span></div>
+                                <div class="small mb-1"><i class="bi bi-geo-alt-fill me-2 text-secondary"></i>Location: <span id="lblEventVenue" class="text-dark">Venue</span></div>
+                                <div class="small mb-1"><i class="bi bi-people me-2 text-secondary"></i>Registered Volunteers: <span id="lblEventReg" class="text-dark">0</span></div>
+                                <div class="small"><i class="bi bi-check-circle-fill me-2 text-success"></i>Checked-In Volunteers: <span id="lblEventChecked" class="text-success fw-bold">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-5 text-center">
+                        <div id="qrCodeContainer" class="p-4 border rounded bg-white shadow-sm d-none">
+                            <div id="qrImageWrapper" class="mb-3">
+                                <!-- Base64 QR Code injected here -->
+                            </div>
+                            <span class="d-block fw-bold text-dark mb-2" id="qrEventTitle">Event Title</span>
+                            <div class="p-2 bg-light rounded border text-break mb-3 text-start small" style="font-family: monospace;" id="qrUrlDisplay"></div>
+                            
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary btn-sm" id="btnCopyQRUrl"><i class="bi bi-clipboard me-1"></i>Copy Attendance Link</button>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <a id="btnDownloadQR" download="event_qr.png" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-download me-1"></i>Download QR</a>
+                                    </div>
+                                    <div class="col-6">
+                                        <button class="btn btn-outline-secondary btn-sm w-100" id="btnPrintQR"><i class="bi bi-printer me-1"></i>Print QR</button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-teal btn-sm mt-1" id="btnRegenerateQR"><i class="bi bi-arrow-clockwise me-1"></i>Regenerate QR</button>
+                            </div>
+                        </div>
+                        <div id="qrCodePlaceholder" class="p-5 border rounded dashed text-muted h-100 d-flex flex-column align-items-center justify-content-center">
+                            <i class="bi bi-qr-code fs-1 mb-2"></i>
+                            <span>Select an event on the left to display its QR Check-In Code.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: LIVE DASHBOARD -->
+            <div class="tab-pane fade" id="dashboard-pane" role="tabpanel" aria-labelledby="dashboard-tab">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label for="dashboardEventSelector" class="form-label small fw-semibold text-secondary">Filter Dashboard by Event</label>
+                        <select id="dashboardEventSelector" class="form-select border-secondary">
+                            <option value="">-- All Events (Global) --</option>
+                            {% for item in events_attendance %}
+                                <option value="{{ item.event.id }}">{{ item.event.name }} ({{ item.event.status }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card border border-light shadow-sm p-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-uppercase text-secondary small fw-semibold">Registered Volunteers</span>
+                                    <h2 class="fw-bold text-dark mt-1 mb-0" id="statRegistered">{{ total_registered }}</h2>
+                                </div>
+                                <span class="fs-2 text-primary"><i class="bi bi-people-fill"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border border-light shadow-sm p-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-uppercase text-secondary small fw-semibold">Present Volunteers</span>
+                                    <h2 class="fw-bold text-success mt-1 mb-0" id="statCheckedIn">{{ total_checked_in }}</h2>
+                                </div>
+                                <span class="fs-2 text-success"><i class="bi bi-check-circle-fill"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border border-light shadow-sm p-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-uppercase text-secondary small fw-semibold">Absent Volunteers</span>
+                                    <h2 class="fw-bold text-warning mt-1 mb-0" id="statPending">{{ pending }}</h2>
+                                </div>
+                                <span class="fs-2 text-warning"><i class="bi bi-hourglass-split"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border border-light shadow-sm p-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-uppercase text-secondary small fw-semibold">Attendance Rate</span>
+                                    <h2 class="fw-bold text-info mt-1 mb-0" id="statPercentage">{{ "%.1f" | format(attendance_pct) }}%</h2>
+                                </div>
+                                <span class="fs-2 text-info"><i class="bi bi-percent"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4 bg-light">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-dark"><i class="bi bi-activity text-danger me-2 animate-pulse"></i>Live Attendance Progress</span>
+                            <span class="text-muted small fw-semibold" id="lblProgressText">{{ total_checked_in }} / {{ total_registered }} Volunteers Checked In</span>
+                        </div>
+                        <div class="progress" style="height: 12px; border-radius: 6px;">
+                            <div id="liveProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" 
+                                 style="width: {{ attendance_pct }}%;" aria-valuenow="{{ attendance_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-header bg-transparent border-bottom fw-bold text-dark">Event Detail List</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Event Name</th>
+                                                <th class="text-center">Registered</th>
+                                                <th class="text-center">Present</th>
+                                                <th class="text-center">Absent</th>
+                                                <th class="text-center">Rate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in events_attendance %}
+                                            <tr>
+                                                <td class="fw-semibold text-dark">{{ item.event.name }}</td>
+                                                <td class="text-center">{{ item.assigned }}</td>
+                                                <td class="text-center text-success fw-bold">{{ item.present }}</td>
+                                                <td class="text-center text-muted">{{ item.assigned - item.present if item.assigned - item.present > 0 else 0 }}</td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-teal-soft text-teal fw-bold">{{ "%.0f" | format(item.rate) }}%</span>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-header bg-transparent border-bottom fw-bold text-dark">Recent Check-Ins</div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush" id="recentCheckinsList">
+                                    {% if recent_checkins %}
+                                        {% for log in recent_checkins[:5] %}
+                                        <div class="list-group-item p-3 border-0 border-bottom">
+                                            <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                                                <span class="fw-bold text-dark">{{ log.volunteer.full_name }}</span>
+                                                <small class="text-teal fw-semibold">{{ log.timestamp | ist_time }}</small>
+                                            </div>
+                                            <p class="mb-0 small text-muted text-truncate">{{ log.event.name }}</p>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="text-center text-muted py-5" id="recentCheckinsPlaceholder">
+                                            <i class="bi bi-clock fs-2 d-block mb-2 text-secondary"></i>
+                                            <span>No attendance records yet.</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: ATTENDANCE LOGS -->
+            <div class="tab-pane fade" id="logs-pane" role="tabpanel" aria-labelledby="logs-tab">
+                <div class="card border border-light shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label for="search" class="form-label small fw-semibold text-secondary">Search Volunteer</label>
+                                <input type="text" class="form-control border-secondary" id="logSearch" placeholder="Name or ID...">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold text-secondary">Filter by Event</label>
+                                <select class="form-select border-secondary" id="logEventFilter">
+                                    <option value="">-- All Events --</option>
+                                    {% for ev in events %}
+                                    <option value="{{ ev.id }}">{{ ev.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold text-secondary">Filter by Date</label>
+                                <input type="date" class="form-control border-secondary" id="logDateFilter">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold text-secondary">Status</label>
+                                <select class="form-select border-secondary" id="logStatusFilter">
+                                    <option value="">-- All --</option>
+                                    <option value="Present">Present</option>
+                                    <option value="Absent">Absent</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold text-secondary">Sort Time</label>
+                                <select class="form-select border-secondary" id="logSortOrder">
+                                    <option value="desc">Newest First</option>
+                                    <option value="asc">Oldest First</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive bg-white rounded border">
+                    <table class="table table-hover align-middle mb-0" id="logsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Volunteer Name</th>
+                                <th>Volunteer ID</th>
+                                <th>Event Name</th>
+                                <th>Event Date</th>
+                                <th>Check-In Time</th>
+                                <th class="text-center">Status</th>
+                                <th>IP Address</th>
+                                <th>Device Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <!-- JS Inject Table Rows -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination Footer -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="small text-muted" id="lblPaginationText">Showing 0 to 0 of 0 entries</div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="logPagination">
+                            <!-- JS Inject Pagination Buttons -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- TAB 4: ANALYTICS -->
+            <div class="tab-pane fade" id="analytics-pane" role="tabpanel" aria-labelledby="analytics-tab">
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-header bg-transparent border-bottom fw-bold text-dark">Event Attendance Trends</div>
+                            <div class="card-body">
+                                <div style="height: 280px; position: relative;">
+                                    <canvas id="chartTrendsUnified"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-header bg-transparent border-bottom fw-bold text-dark">Event Participation</div>
+                            <div class="card-body">
+                                <div style="height: 280px; position: relative;">
+                                    <canvas id="chartParticipationUnified"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-header bg-transparent border-bottom fw-bold text-dark">Monthly Attendance</div>
+                            <div class="card-body">
+                                <div style="height: 260px; position: relative;">
+                                    <canvas id="chartMonthlyUnified"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-header bg-transparent border-bottom fw-bold text-dark">Most Active Volunteers</div>
+                            <div class="card-body">
+                                <div style="height: 260px; position: relative;">
+                                    <canvas id="chartActiveVolsUnified"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: REPORTS & EXPORT -->
+            <div class="tab-pane fade" id="reports-pane" role="tabpanel" aria-labelledby="reports-tab">
+                <div class="row g-4">
+                    <!-- Event Attendance Report -->
+                    <div class="col-md-4">
+                        <div class="card border border-light shadow-sm p-4 h-100 d-flex flex-column">
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-file-earmark-pdf me-2 text-teal"></i>Event Turnout Report</h5>
+                            <p class="text-muted small flex-grow-1">Download attendance registers filtered by a specific event in CSV, Excel, or PDF.</p>
+                            <div class="mb-3">
+                                <select id="repEventSelector" class="form-select border-secondary">
+                                    <option value="">-- Choose Event --</option>
+                                    {% for ev in events %}
+                                    <option value="{{ ev.id }}">{{ ev.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-teal btn-sm" onclick="exportReport('event', 'pdf')"><i class="bi bi-file-pdf me-1"></i>Download PDF</button>
+                                <button class="btn btn-outline-teal btn-sm" onclick="exportReport('event', 'csv')"><i class="bi bi-filetype-csv me-1"></i>Download CSV</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Volunteer Attendance Report -->
+                    <div class="col-md-4">
+                        <div class="card border border-light shadow-sm p-4 h-100 d-flex flex-column">
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-person-lines-fill me-2 text-teal"></i>Volunteer Record Report</h5>
+                            <p class="text-muted small flex-grow-1">Generate complete timeline logs for an individual volunteer across all applied events.</p>
+                            <div class="mb-3">
+                                <select id="repVolunteerSelector" class="form-select border-secondary">
+                                    <option value="">-- Choose Volunteer --</option>
+                                    {% for v in volunteers %}
+                                    <option value="{{ v.id }}">{{ v.full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-teal btn-sm" onclick="exportReport('volunteer', 'pdf')"><i class="bi bi-file-pdf me-1"></i>Download PDF</button>
+                                <button class="btn btn-outline-teal btn-sm" onclick="exportReport('volunteer', 'csv')"><i class="bi bi-filetype-csv me-1"></i>Download CSV</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Attendance Report -->
+                    <div class="col-md-4">
+                        <div class="card border border-light shadow-sm p-4 h-100 d-flex flex-column">
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-calendar-range me-2 text-teal"></i>Monthly Summary Report</h5>
+                            <p class="text-muted small flex-grow-1">Download consolidated monthly summaries mapping volunteer participation trends.</p>
+                            <div class="mb-3">
+                                <input type="month" id="repMonthSelector" class="form-control border-secondary" value="2026-06">
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-teal btn-sm" onclick="exportReport('monthly', 'pdf')"><i class="bi bi-file-pdf me-1"></i>Download PDF</button>
+                                <button class="btn btn-outline-teal btn-sm" onclick="exportReport('monthly', 'csv')"><i class="bi bi-filetype-csv me-1"></i>Download CSV</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- VOLUNTEER VIEW: ATTENDANCE HISTORY DASHBOARD -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-1 text-gray-800 fw-bold">Attendance History</h1>
+        <p class="text-muted mb-0">Track your event attendance and checked-in status.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border border-light shadow-sm p-3 bg-white h-100">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-uppercase text-secondary small fw-semibold">Total Events Attended</span>
+                    <h2 class="fw-bold text-teal mt-1 mb-0">{{ total_attended }}</h2>
+                </div>
+                <span class="fs-1 text-teal"><i class="bi bi-patch-check-fill"></i></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border border-light shadow-sm">
+    <div class="card-header bg-transparent border-bottom fw-bold text-dark">
+        <i class="bi bi-clock-history me-2 text-primary"></i>My Attendance Logs
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Event Name</th>
+                        <th>Event Date</th>
+                        <th>Check-In Time</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if checkin_history %}
+                        {% for att in checkin_history %}
+                        <tr>
+                            <td class="fw-semibold text-dark">{{ att.event.name }}</td>
+                            <td>{{ att.event.date.strftime('%Y-%m-%d') }}</td>
+                            <td class="fw-semibold text-teal">{{ att.timestamp | ist }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if att.status == 'Present' %}bg-success-soft text-success{% else %}bg-danger-soft text-danger{% endif %} py-1 px-2.5">{{ att.status }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">No attendance logs available.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    
+    {% if current_user.role == 'admin' %}
+    // --- ADMIN MODULE SCRIPTS ---
+    
+    // Map event data for dynamic rendering in Tab 1
+    const eventsData = {
+        {% for item in events_attendance %}
+        "{{ item.event.id }}": {
+            "name": "{{ item.event.name }}",
+            "date": "{{ item.event.date.strftime('%Y-%m-%d') }}",
+            "venue": "{{ item.event.venue }}",
+            "registered": {{ item.assigned }},
+            "checked_in": {{ item.present }}
+        },
+        {% endfor %}
+    };
+
+    const qrSelector = document.getElementById("qrEventSelector");
+    const qrContainer = document.getElementById("qrCodeContainer");
+    const qrPlaceholder = document.getElementById("qrCodePlaceholder");
+    const qrWrapper = document.getElementById("qrImageWrapper");
+    const qrTitle = document.getElementById("qrEventTitle");
+    const copyBtn = document.getElementById("btnCopyQRUrl");
+    const printBtn = document.getElementById("btnPrintQR");
+    const downloadBtn = document.getElementById("btnDownloadQR");
+    const regenBtn = document.getElementById("btnRegenerateQR");
+
+    // Dynamic Card details labels
+    const detailsCard = document.getElementById("qrEventDetailsCard");
+    const lblName = document.getElementById("lblEventName");
+    const lblDate = document.getElementById("lblEventDate");
+    const lblVenue = document.getElementById("lblEventVenue");
+    const lblReg = document.getElementById("lblEventReg");
+    const lblChecked = document.getElementById("lblEventChecked");
+
+    let selectedEventId = null;
+
+    function fetchAndRenderQR(eventId) {
+        if (!eventId) return;
+        fetch(`/attendance/generate-qr/${eventId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    qrWrapper.innerHTML = `<img src="data:image/png;base64,${data.qr_code}" class="img-fluid border p-2" style="max-width: 180px;">`;
+                    qrTitle.textContent = qrSelector.options[qrSelector.selectedIndex].text;
+                    
+                    const urlDisplay = document.getElementById("qrUrlDisplay");
+                    if (urlDisplay) urlDisplay.textContent = data.qr_url;
+                    
+                    if (downloadBtn) {
+                        downloadBtn.href = `data:image/png;base64,${data.qr_code}`;
+                    }
+
+                    // Render event statistics card in Tab 1
+                    const evInfo = eventsData[eventId];
+                    if (evInfo) {
+                        lblName.textContent = evInfo.name;
+                        lblDate.textContent = evInfo.date;
+                        lblVenue.textContent = evInfo.venue;
+                        lblReg.textContent = evInfo.registered;
+                        lblChecked.textContent = evInfo.checked_in;
+                        detailsCard.classList.remove("d-none");
+                    }
+
+                    qrContainer.classList.remove("d-none");
+                    qrPlaceholder.classList.add("d-none");
+
+                    if (copyBtn) {
+                        copyBtn.onclick = function() {
+                            navigator.clipboard.writeText(data.qr_url).then(() => {
+                                copyBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied!';
+                                setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Attendance Link'; }, 2000);
+                            });
+                        };
+                    }
+                }
+            })
+            .catch(err => console.error("Error generating QR:", err));
+    }
+
+    if (qrSelector) {
+        qrSelector.addEventListener("change", function() {
+            selectedEventId = qrSelector.value;
+            if (!selectedEventId) {
+                qrContainer.classList.add("d-none");
+                detailsCard.classList.add("d-none");
+                qrPlaceholder.classList.remove("d-none");
+                return;
+            }
+            fetchAndRenderQR(selectedEventId);
+        });
+    }
+
+    if (regenBtn) {
+        regenBtn.addEventListener("click", () => fetchAndRenderQR(selectedEventId));
+    }
+
+    if (printBtn) {
+        printBtn.addEventListener("click", function() {
+            if (selectedEventId) {
+                window.open(`/attendance/print-qr/${selectedEventId}`, '_blank');
+            }
+        });
+    }
+
+    // --- CHART.JS INITIALIZATION FOR TAB 4 ---
+    let chartTrends = null;
+    let chartParticipation = null;
+    let chartMonthly = null;
+    let chartActiveVols = null;
+
+    function initCharts(data) {
+        const trendsCtx = document.getElementById('chartTrendsUnified').getContext('2d');
+        chartTrends = new Chart(trendsCtx, {
+            type: 'line',
+            data: {
+                labels: data.trend_labels,
+                datasets: [{
+                    data: data.trend_values,
+                    borderColor: '#0d9488',
+                    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+
+        const partCtx = document.getElementById('chartParticipationUnified').getContext('2d');
+        chartParticipation = new Chart(partCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Checked-In', 'Pending'],
+                datasets: [{
+                    data: data.participation,
+                    backgroundColor: ['#22c55e', '#f59e0b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+
+        const monthlyCtx = document.getElementById('chartMonthlyUnified').getContext('2d');
+        chartMonthly = new Chart(monthlyCtx, {
+            type: 'bar',
+            data: {
+                labels: data.monthly_labels,
+                datasets: [{
+                    data: data.monthly_values,
+                    backgroundColor: '#6366f1',
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+
+        const activeCtx = document.getElementById('chartActiveVolsUnified').getContext('2d');
+        chartActiveVols = new Chart(activeCtx, {
+            type: 'bar',
+            data: {
+                labels: data.vol_labels,
+                datasets: [{
+                    data: data.vol_values,
+                    backgroundColor: '#06b6d4',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+
+    function updateCharts(data) {
+        if (!chartTrends) {
+            initCharts(data);
+            return;
+        }
+        chartTrends.data.labels = data.trend_labels;
+        chartTrends.data.datasets[0].data = data.trend_values;
+        chartTrends.update();
+
+        chartParticipation.data.datasets[0].data = data.participation;
+        chartParticipation.update();
+
+        chartMonthly.data.labels = data.monthly_labels;
+        chartMonthly.data.datasets[0].data = data.monthly_values;
+        chartMonthly.update();
+
+        chartActiveVols.data.labels = data.vol_labels;
+        chartActiveVols.data.datasets[0].data = data.vol_values;
+        chartActiveVols.update();
+    }
+
+    // --- LOGS GRID RENDERING WITH PAGINATION FOR TAB 3 ---
+    let logsData = [];
+    let logsCurrentPage = 1;
+    const logsPageSize = 10;
+
+    function fetchLogs() {
+        const search = document.getElementById("logSearch").value;
+        const eventId = document.getElementById("logEventFilter").value;
+        const dateVal = document.getElementById("logDateFilter").value;
+        const statusVal = document.getElementById("logStatusFilter").value;
+        const sortVal = document.getElementById("logSortOrder").value;
+
+        const url = `/attendance/api/logs?search=${search}&event_id=${eventId}&date=${dateVal}&status=${statusVal}&sort=${sortVal}`;
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    logsData = data.logs;
+                    renderLogsTable();
+                }
+            })
+            .catch(err => console.error("Error loading logs:", err));
+    }
+
+    function renderLogsTable() {
+        const tbody = document.getElementById("logsTableBody");
+        const start = (logsCurrentPage - 1) * logsPageSize;
+        const end = start + logsPageSize;
+        const pagedLogs = logsData.slice(start, end);
+
+        if (pagedLogs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No attendance data available.</td></tr>`;
+            document.getElementById("lblPaginationText").textContent = "Showing 0 of 0 entries";
+            document.getElementById("logPagination").innerHTML = "";
+            return;
+        }
+
+        let html = '';
+        pagedLogs.forEach(l => {
+            const badgeClass = l.status === 'Present' ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger';
+            const deviceIcon = l.device_info === 'Mobile' ? 'bi-phone' : (l.device_info === 'Tablet' ? 'bi-tablet' : 'bi-laptop');
+            html += `
+            <tr>
+                <td class="fw-semibold text-dark">${l.volunteer_name}</td>
+                <td><span class="badge bg-light text-secondary border">${l.volunteer_id}</span></td>
+                <td>${l.event_name}</td>
+                <td>${l.event_date}</td>
+                <td class="fw-semibold text-teal">${l.check_in_time}</td>
+                <td class="text-center"><span class="badge ${badgeClass} py-1 px-2.5">${l.status}</span></td>
+                <td class="text-muted small" style="font-family: monospace;">${l.ip_address}</td>
+                <td><span class="small text-secondary"><i class="bi ${deviceIcon} me-1"></i>${l.device_info}</span></td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+
+        // Update footer texts
+        const total = logsData.length;
+        document.getElementById("lblPaginationText").textContent = `Showing ${start + 1} to ${Math.min(end, total)} of ${total} entries`;
+
+        // Render Pagination buttons
+        const totalPages = Math.ceil(total / logsPageSize);
+        let paginationHtml = '';
+        for (let i = 1; i <= totalPages; i++) {
+            paginationHtml += `
+            <li class="page-item ${i === logsCurrentPage ? 'active' : ''}">
+                <button class="page-link" onclick="setLogsPage(${i})">${i}</button>
+            </li>`;
+        }
+        document.getElementById("logPagination").innerHTML = paginationHtml;
+    }
+
+    window.setLogsPage = function(pageNumber) {
+        logsCurrentPage = pageNumber;
+        renderLogsTable();
+    };
+
+    // Attach filter listeners
+    ["logSearch", "logEventFilter", "logDateFilter", "logStatusFilter", "logSortOrder"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener("input", () => { logsCurrentPage = 1; fetchLogs(); });
+            el.addEventListener("change", () => { logsCurrentPage = 1; fetchLogs(); });
+        }
+    });
+
+    // --- LIVE POLLING BROADCAST AND REAL-TIME UPDATES ---
+    function updateStatsDashboard() {
+        const statsUrl = selectedEventId ? `/attendance/api/stats?event_id=${selectedEventId}` : '/attendance/api/stats';
+        fetch(statsUrl)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // 1. Update stats cards
+                    document.getElementById('statRegistered').textContent = data.registered;
+                    document.getElementById('statCheckedIn').textContent = data.checked_in;
+                    document.getElementById('statPending').textContent = data.pending;
+                    document.getElementById('statPercentage').textContent = data.percentage + '%';
+
+                    // 2. Update progress tracker bar
+                    if (data.registered === 0) {
+                        document.getElementById('lblProgressText').textContent = "No volunteers registered for this event.";
+                    } else {
+                        document.getElementById('lblProgressText').textContent = `${data.checked_in} / ${data.registered} Volunteers Checked In`;
+                    }
+                    const bar = document.getElementById('liveProgressBar');
+                    bar.style.width = data.percentage + '%';
+                    bar.setAttribute('aria-valuenow', data.percentage);
+
+                    // 3. Update Tab 1 Checked Counter if active selector exists
+                    if (selectedEventId && eventsData[selectedEventId]) {
+                        eventsData[selectedEventId].checked_in = data.checked_in;
+                        lblChecked.textContent = data.checked_in;
+                    }
+
+                    // 4. Update recent check-ins list
+                    const recentContainer = document.getElementById('recentCheckinsList');
+                    if (data.recent && data.recent.length > 0) {
+                        let html = '';
+                        data.recent.forEach(r => {
+                            html += `
+                            <div class="list-group-item p-3 border-0 border-bottom animate__animated animate__fadeIn">
+                                <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold text-dark">${r.volunteer_name}</span>
+                                    <small class="text-teal fw-semibold">${r.time}</small>
+                                </div>
+                                <p class="mb-0 small text-muted text-truncate">${r.event_name}</p>
+                            </div>`;
+                        });
+                        recentContainer.innerHTML = html;
+                    } else {
+                        recentContainer.innerHTML = `
+                        <div class="text-center text-muted py-5" id="recentCheckinsPlaceholder">
+                            <i class="bi bi-clock fs-2 d-block mb-2 text-secondary"></i>
+                            <span>No attendance data available.</span>
+                        </div>`;
+                    }
+
+                    // 5. Trigger live notification toast
+                    if (data.live_alert) {
+                        showLiveToast(data.live_alert);
+                    }
+                }
+            })
+            .catch(err => console.error("Error polling stats:", err));
+
+        // Poll analytics dataset
+        const analyticsUrl = selectedEventId ? `/attendance/api/analytics?event_id=${selectedEventId}` : '/attendance/api/analytics';
+        fetch(analyticsUrl)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    updateCharts(data);
+                }
+            })
+            .catch(err => console.error("Error polling analytics:", err));
+    }
+
+    // Set up central event selection synchronization
+    function syncSelectedEvent(eventId) {
+        selectedEventId = eventId;
+        const dbSel = document.getElementById("dashboardEventSelector");
+        if (dbSel) dbSel.value = eventId;
+        const logSel = document.getElementById("logEventFilter");
+        if (logSel) logSel.value = eventId;
+        const qrSel = document.getElementById("qrEventSelector");
+        if (qrSel) {
+            const hasOption = [...qrSel.options].some(o => o.value === eventId);
+            if (hasOption) {
+                qrSel.value = eventId;
+                fetchAndRenderQR(eventId);
+            }
+        }
+        updateStatsDashboard();
+        logsCurrentPage = 1;
+        fetchLogs();
+    }
+
+    const dbSelector = document.getElementById("dashboardEventSelector");
+    if (dbSelector) {
+        dbSelector.addEventListener("change", (e) => {
+            syncSelectedEvent(e.target.value);
+        });
+    }
+
+    function showLiveToast(message) {
+        const container = document.getElementById('liveAlertContainer');
+        const id = 'toast_' + Date.now();
+        const toastHtml = `
+        <div id="${id}" class="toast align-items-center text-white bg-dark border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+            <div class="d-flex">
+                <div class="toast-body fw-medium">
+                    <i class="bi bi-bell-fill text-warning me-2"></i>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>`;
+        container.insertAdjacentHTML('beforeend', toastHtml);
+        const element = document.getElementById(id);
+        const toast = new bootstrap.Toast(element);
+        toast.show();
+        element.addEventListener('hidden.bs.toast', () => element.remove());
+    }
+
+    // Tab Export helpers
+    window.exportReport = function(type, format) {
+        let url = `/attendance/report/export?report_type=${type}&format=${format}`;
+        if (type === 'event') {
+            const eventId = document.getElementById("repEventSelector").value;
+            if (!eventId) { alert("Please select an event."); return; }
+            url += `&event_id=${eventId}`;
+        } else if (type === 'volunteer') {
+            const volunteerId = document.getElementById("repVolunteerSelector").value;
+            if (!volunteerId) { alert("Please select a volunteer."); return; }
+            url += `&volunteer_id=${volunteerId}`;
+        } else if (type === 'monthly') {
+            const month = document.getElementById("repMonthSelector").value;
+            if (!month) { alert("Please choose a month."); return; }
+            url += `&month=${month}`;
+        }
+        window.open(url, '_blank');
+    };
+
+    // Load initial data
+    fetchLogs();
+    
+    fetch('/attendance/api/analytics')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                initCharts(data);
+            }
+        });
+
+    // Start 5-second polling loop
+    setInterval(updateStatsDashboard, 5000);
+
+    // Update timer
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('lblTime').textContent = now.toLocaleTimeString();
+    }, 1000);
+
+    {% endif %}
+});
+</script>
+{% endblock %}

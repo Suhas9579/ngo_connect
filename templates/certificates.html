@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Certificates{% endblock %}
+
+{% block content %}
+<!-- HEADER -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 text-gray-800 fw-bold">Volunteering Certificates</h1>
+        <p class="text-muted">
+            {% if current_user.role == 'admin' %}
+            Review issued certificates, print records, or verify certificate serial numbers.
+            {% else %}
+            Download or print your official certificates of appreciation for event participation.
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- Certificate History List -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-transparent border-bottom fw-bold">
+        <i class="bi bi-award-fill me-2 text-teal"></i>Certificate Audit Ledger
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Certificate Number</th>
+                        {% if current_user.role == 'admin' %}
+                        <th>Recipient</th>
+                        {% endif %}
+                        <th>Event Name</th>
+                        <th>Event Category</th>
+                        <th class="text-center">Issue Date</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if certificates_list %}
+                        {% for cert in certificates_list %}
+                        <tr>
+                            <td class="ps-4"><code class="text-dark fw-semibold">{{ cert.certificate_number }}</code></td>
+                            {% if current_user.role == 'admin' %}
+                            <td>
+                                <div><strong>{{ cert.volunteer.full_name }}</strong></div>
+                                <span class="small text-muted">VOL-{{ "%04d" | format(cert.volunteer.id) }}</span>
+                            </td>
+                            {% endif %}
+                            <td><strong>{{ cert.event.name }}</strong></td>
+                            <td><span class="badge bg-light text-secondary border small">{{ cert.event.category }}</span></td>
+                            <td class="text-center small">{{ cert.issue_date | ist('%d %b %Y') }}</td>
+                            <td class="text-end pe-4">
+                                <a href="{{ url_for('download_certificate', id=cert.id) }}" class="btn btn-teal btn-sm" title="Download PDF">
+                                    <i class="bi bi-download me-1"></i>Download PDF
+                                </a>
+                                {% if current_user.role == 'admin' %}
+                                <form action="{{ url_for('delete_certificate', id=cert.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Revoke and delete this certificate record?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-award fs-1 d-block mb-2"></i>
+                                {% if current_user.role == 'admin' %}
+                                No certificates have been issued yet. Complete an event and check-off attendance to generate one.
+                                {% else %}
+                                You haven't received any certificates yet. Attend assigned events to earn certificates!
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

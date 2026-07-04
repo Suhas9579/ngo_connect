@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Registration - NGO Connect</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+</head>
+<body class="auth-wrapper py-5">
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                
+                <!-- Flash messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show border-0 shadow-sm mb-3" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="card auth-card border-0 mx-auto" style="max-width: 800px;">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <div class="logo-circle-auth">
+                                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="NGO Connect Logo">
+                            </div>
+                            <h2 class="fw-bold text-dark mt-2">NGO Connect</h2>
+                            <p class="text-secondary">Join our team of dedicated community helpers</p>
+                        </div>
+                        
+                        <form method="POST" action="{{ url_for('register') }}" class="needs-validation">
+                            {{ form.csrf_token }}
+                            
+                            <h5 class="fw-bold text-teal mb-3 border-bottom pb-2"><i class="bi bi-shield-lock me-2"></i>Account Information</h5>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="email" class="form-label fw-semibold">Email Address</label>
+                                    {{ form.email(class="form-control", placeholder="name@domain.com", id="email") }}
+                                    {% if form.email.errors %}
+                                        {% for error in form.email.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="mobile_number" class="form-label fw-semibold">Mobile Number</label>
+                                    {{ form.mobile_number(class="form-control", placeholder="10-digit Indian Mobile Number", id="mobile_number", type="tel", maxlength="10", minlength="10", inputmode="numeric", pattern="[6-9][0-9]{9}", oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);") }}
+                                    {% if form.mobile_number.errors %}
+                                        {% for error in form.mobile_number.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label for="password" class="form-label fw-semibold">Password</label>
+                                    {{ form.password(class="form-control", placeholder="Min 8 chars, 1 uppercase, 1 special", id="password") }}
+                                    {% if form.password.errors %}
+                                        {% for error in form.password.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="confirm_password" class="form-label fw-semibold">Confirm Password</label>
+                                    {{ form.confirm_password(class="form-control", placeholder="••••••••", id="confirm_password") }}
+                                    {% if form.confirm_password.errors %}
+                                        {% for error in form.confirm_password.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <h5 class="fw-bold text-teal mb-3 border-bottom pb-2"><i class="bi bi-person me-2"></i>Personal Profile</h5>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="full_name" class="form-label fw-semibold">Full Name</label>
+                                    {{ form.full_name(class="form-control", placeholder="John Doe", id="full_name") }}
+                                    {% if form.full_name.errors %}
+                                        {% for error in form.full_name.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="gender" class="form-label fw-semibold">Gender</label>
+                                    {{ form.gender(class="form-select", id="gender") }}
+                                    {% if form.gender.errors %}
+                                        {% for error in form.gender.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="date_of_birth" class="form-label fw-semibold">Date of Birth</label>
+                                    {{ form.date_of_birth(class="form-control", type="date", id="date_of_birth") }}
+                                    {% if form.date_of_birth.errors %}
+                                        {% for error in form.date_of_birth.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="address" class="form-label fw-semibold">Address</label>
+                                {{ form.address(class="form-control", placeholder="City, State, Zip", id="address") }}
+                                {% if form.address.errors %}
+                                    {% for error in form.address.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            
+                            <h5 class="fw-bold text-teal mb-3 border-bottom pb-2"><i class="bi bi-lightbulb me-2"></i>Matching Parameters</h5>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="skills" class="form-label fw-semibold">Skills (comma-separated)</label>
+                                    {{ form.skills(class="form-control", placeholder="e.g. First Aid, Teaching, Driving, Cooking", id="skills") }}
+                                    <small class="text-muted">Keywords are used by the smart matchmaking system</small>
+                                    {% if form.skills.errors %}
+                                        {% for error in form.skills.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="interests" class="form-label fw-semibold">Interests (comma-separated)</label>
+                                    {{ form.interests(class="form-control", placeholder="e.g. Healthcare, Education, Disaster relief", id="interests") }}
+                                    {% if form.interests.errors %}
+                                        {% for error in form.interests.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="availability" class="form-label fw-semibold">General Availability</label>
+                                {{ form.availability(class="form-select", id="availability") }}
+                                {% if form.availability.errors %}
+                                    {% for error in form.availability.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Submit Button -->
+                            <div class="d-grid mb-3">
+                                {{ form.submit(class="btn btn-primary py-2.5 btn-lg fs-6") }}
+                            </div>
+                        </form>
+                        
+                        <div class="text-center mt-4 border-top pt-3">
+                            <span class="text-muted">Already registered?</span>
+                            <a href="{{ url_for('login') }}" class="text-primary fw-bold text-decoration-none ms-1">Log in here</a>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

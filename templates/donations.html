@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Donation Ledger{% endblock %}
+
+{% block content %}
+<!-- HEADER -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 text-gray-800 fw-bold">Donation & Resource Fund Log</h1>
+        <p class="text-muted">Audit external funding contributions, individual donations, and payment breakdown.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDonationModal">
+        <i class="bi bi-plus-circle-fill me-2"></i>Record Donation
+    </button>
+</div>
+
+<!-- Donation Metrics Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm p-3 stat-card bg-white">
+            <div>
+                <h6 class="text-muted small fw-bold text-uppercase">Total Funds Raised</h6>
+                <span class="fs-3 fw-bold">{{ total_amount | inr }}</span>
+            </div>
+            <div class="stat-icon rose">
+                <i class="bi bi-cash-coin"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm p-3 stat-card bg-white">
+            <div>
+                <h6 class="text-muted small fw-bold text-uppercase">This Month</h6>
+                <span class="fs-3 fw-bold">{{ monthly_total | inr }}</span>
+            </div>
+            <div class="stat-icon">
+                <i class="bi bi-calendar-check"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm p-3 stat-card bg-white">
+            <div>
+                <h6 class="text-muted small fw-bold text-uppercase">Average Ticket</h6>
+                <span class="fs-3 fw-bold">{{ avg_donation | inr }}</span>
+            </div>
+            <div class="stat-icon indigo">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm p-3 stat-card bg-white">
+            <div>
+                <h6 class="text-muted small fw-bold text-uppercase">Total Receipts</h6>
+                <span class="fs-3 fw-bold">{{ donations_list | length }} Logs</span>
+            </div>
+            <div class="stat-icon amber">
+                <i class="bi bi-receipt"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-transparent border-bottom fw-bold"><i class="bi bi-bar-chart-fill me-2 text-teal"></i>Monthly Donation Trends</div>
+            <div class="card-body">
+                <div style="height: 260px;">
+                    <canvas id="donationTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-transparent border-bottom fw-bold"><i class="bi bi-pie-chart-fill me-2 text-indigo"></i>Payment Methods Breakdown</div>
+            <div class="card-body">
+                <div style="height: 260px;">
+                    <canvas id="paymentPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DONATION TABLE -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent border-bottom py-3 d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="bi bi-table me-2 text-primary"></i>Donation Records Ledger</span>
+        <form method="GET" action="{{ url_for('donations') }}" class="d-flex gap-2" style="max-width: 500px;">
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Search donor name or email..." value="{{ search_query or '' }}">
+            <select name="method" class="form-select form-select-sm" style="width: 150px;">
+                <option value="">All Methods</option>
+                <option value="Cash" {% if method_filter == 'Cash' %}selected{% endif %}>Cash</option>
+                <option value="Card" {% if method_filter == 'Card' %}selected{% endif %}>Card</option>
+                <option value="Bank Transfer" {% if method_filter == 'Bank Transfer' %}selected{% endif %}>Bank Transfer</option>
+                <option value="UPI" {% if method_filter == 'UPI' %}selected{% endif %}>UPI</option>
+                <option value="Cheque" {% if method_filter == 'Cheque' %}selected{% endif %}>Cheque</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i></button>
+            <a href="{{ url_for('donations') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-counterclockwise"></i></a>
+        </form>
+    </div>
+    
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Donor Name</th>
+                        <th>Email / Contact</th>
+                        <th>Purpose / Project</th>
+                        <th class="text-center">Payment Method</th>
+                        <th class="text-center">Donation Date</th>
+                        <th class="text-center">Amount</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if donations_list %}
+                        {% for don in donations_list %}
+                        <tr>
+                            <td class="ps-4"><strong>{{ don.donor_name }}</strong></td>
+                            <td>
+                                <div class="small"><i class="bi bi-envelope me-1 text-muted"></i>{{ don.email }}</div>
+                                <div class="small text-muted"><i class="bi bi-telephone me-1"></i>{{ don.phone_number }}</div>
+                            </td>
+                            <td><span class="small">{{ don.purpose or 'General Fund' }}</span></td>
+                            <td class="text-center">
+                                <span class="payment-badge payment-{{ don.payment_method.lower().replace(' ', '-') }}">{{ don.payment_method }}</span>
+                            </td>
+                            <td class="text-center small">{{ don.donation_date.strftime('%Y-%m-%d') }}</td>
+                            <td class="text-center fw-bold text-teal">{{ don.amount | inr }}</td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group">
+                                    <button class="btn btn-outline-teal btn-sm" data-bs-toggle="modal" data-bs-target="#editDonationModal{{ don.id }}"><i class="bi bi-pencil"></i></button>
+                                    <form action="{{ url_for('delete_donation', id=don.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this donation receipt record?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">No donations matching the criteria found.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- EDIT DONATION MODALS (EXTRACTED OUTSIDE TABLE) -->
+<!-- ========================================================= -->
+{% if donations_list %}
+    {% for don in donations_list %}
+    <div class="modal fade" id="editDonationModal{{ don.id }}" tabindex="-1" aria-labelledby="editDonationModalLabel{{ don.id }}" aria-hidden="true" style="z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold" id="editDonationModalLabel{{ don.id }}">Modify Donation Log</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ url_for('edit_donation', id=don.id) }}" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Donor Name</label>
+                            <input type="text" class="form-control" name="donor_name" value="{{ don.donor_name }}" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Email Address</label>
+                                <input type="email" class="form-control" name="email" value="{{ don.email }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Phone Number</label>
+                                <input type="tel" class="form-control" name="phone_number" value="{{ don.phone_number }}" required maxlength="10" minlength="10" inputmode="numeric" pattern="[6-9][0-9]{9}" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);">
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Donation Amount (₹)</label>
+                                <input type="number" step="0.01" class="form-control" name="amount" value="{{ don.amount }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Payment Method</label>
+                                <select class="form-select" name="payment_method">
+                                    <option value="Cash" {% if don.payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+                                    <option value="Card" {% if don.payment_method == 'Card' %}selected{% endif %}>Card</option>
+                                    <option value="Bank Transfer" {% if don.payment_method == 'Bank Transfer' %}selected{% endif %}>Bank Transfer</option>
+                                    <option value="UPI" {% if don.payment_method == 'UPI' %}selected{% endif %}>UPI</option>
+                                    <option value="Cheque" {% if don.payment_method == 'Cheque' %}selected{% endif %}>Cheque</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Donation Date</label>
+                                <input type="date" class="form-control" name="donation_date" value="{{ don.donation_date.strftime('%Y-%m-%d') }}" max="{{ today_date }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Purpose / Project</label>
+                                <input type="text" class="form-control" name="purpose" value="{{ don.purpose or '' }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- ADD DONATION MODAL -->
+<div class="modal fade" id="addDonationModal" tabindex="-1" aria-labelledby="addDonationModalLabel" aria-hidden="true" style="z-index: 1065;">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="addDonationModalLabel">Record New Donation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('add_donation') }}" method="POST">
+                <div class="modal-body">
+                    {{ form.csrf_token }}
+                    <div class="mb-3">
+                        <label for="donor_name" class="form-label fw-semibold small">Donor Name</label>
+                        {{ form.donor_name(class="form-control", placeholder="e.g. Robert Downey") }}
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label for="email" class="form-label fw-semibold small">Email Address</label>
+                            {{ form.email(class="form-control", placeholder="robert@domain.com") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone_number" class="form-label fw-semibold small">Phone Number</label>
+                            {{ form.phone_number(class="form-control", placeholder="10-digit Indian Mobile Number", type="tel", maxlength="10", minlength="10", inputmode="numeric", pattern="[6-9][0-9]{9}", oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);") }}
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label for="amount" class="form-label fw-semibold small">Donation Amount (₹)</label>
+                            {{ form.amount(class="form-control", type="number", step="0.01", min="0.01") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="payment_method" class="form-label fw-semibold small">Payment Method</label>
+                            {{ form.payment_method(class="form-select") }}
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label for="donation_date" class="form-label fw-semibold small">Donation Date</label>
+                            {{ form.donation_date(class="form-control", type="date", max=today_date) }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="purpose" class="form-label fw-semibold small">Purpose / Project</label>
+                            {{ form.purpose(class="form-control", placeholder="e.g. Medical Supplies Fund") }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    {{ form.submit(class="btn btn-primary btn-sm") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const monthlyLabels = {{ trend_labels | default([]) | tojson }};
+    const monthlyValues = {{ trend_values | default([]) | tojson }};
+    const paymentLabels = {{ payment_labels | default([]) | tojson }};
+    const paymentValues = {{ payment_values | default([]) | tojson }};
+    
+    window.NGOCharts.createBarChart(
+        'donationTrendChart', 
+        monthlyLabels, 
+        monthlyValues, 
+        'Monthly Donations (₹)', 
+        'teal'
+    );
+    window.NGOCharts.createDoughnutChart(
+        'paymentPieChart', 
+        paymentLabels, 
+        paymentValues
+    );
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('action') === 'new') {
+        const addModalEl = document.getElementById('addDonationModal');
+        if (addModalEl) {
+            const addModal = new bootstrap.Modal(addModalEl);
+            addModal.show();
+        }
+    }
+});
+</script>
+{% endblock %}

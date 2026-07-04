@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}Event Details - {{ event.name }}{% endblock %}
+
+{% block content %}
+<!-- Back to Events -->
+<div class="mb-3">
+    <a href="{{ url_for('events') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Events</a>
+</div>
+
+<!-- EVENT TITLE AND CORE CONTROLS -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-4">
+        <div class="row g-4 align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-light text-primary border border-primary">{{ event.category }}</span>
+                    <span class="badge {% if event.status == 'Upcoming' %}bg-warning text-dark{% elif event.status == 'Completed' %}bg-success{% else %}bg-danger{% endif %}">
+                        {{ event.status }}
+                    </span>
+                </div>
+                <h2 class="fw-bold text-dark mb-2">{{ event.name }}</h2>
+                <p class="text-muted mb-0">{{ event.description }}</p>
+            </div>
+            
+            <div class="col-md-4 text-md-end">
+                <div class="d-grid d-md-inline-flex gap-2">
+                    <button class="btn btn-outline-teal btn-sm" data-bs-toggle="modal" data-bs-target="#editEventModal{{ event.id }}"><i class="bi bi-pencil me-1"></i>Edit Details</button>
+                    
+                    {% if event.status == 'Upcoming' %}
+                    <form action="{{ url_for('close_event_admin', id=event.id, status='Completed') }}" method="POST" class="d-inline" onsubmit="return confirm('Mark this event as Completed? This allows certificates to be generated.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-success btn-sm w-100"><i class="bi bi-check-circle me-1"></i>Complete Event</button>
+                    </form>
+                    <form action="{{ url_for('close_event_admin', id=event.id, status='Closed') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to close/cancel this event?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-sm w-100"><i class="bi bi-x-circle me-1"></i>Close Event</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <hr class="my-3">
+        
+        <!-- Metadata items -->
+        <div class="row g-3 text-secondary small">
+            <div class="col-sm-6 col-md-3">
+                <span class="d-block text-muted">Date & Time</span>
+                <strong class="text-dark"><i class="bi bi-calendar3 me-1"></i>{{ event.date.strftime('%Y-%m-%d') }} @ {{ event.time.strftime('%I:%M %p') }}</strong>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <span class="d-block text-muted">Venue</span>
+                <strong class="text-dark"><i class="bi bi-geo-alt me-1"></i>{{ event.venue }}</strong>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <span class="d-block text-muted">Volunteer Coverage</span>
+                <strong class="text-dark"><i class="bi bi-people me-1"></i>{{ assigned_list | length }} / {{ event.required_volunteers }} Assigned</strong>
+            </div>
+            <div class="col-sm-6 col-md-3 text-sm-end">
+                <span class="d-block text-muted">Event Report</span>
+                <a href="{{ url_for('export_event_report', event_id=event.id, format='pdf') }}" class="btn btn-link p-0 text-decoration-none text-teal fw-semibold"><i class="bi bi-file-earmark-pdf me-1"></i>Export Event PDF</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- LEFT SIDE: VOLUNTEERS & MATCHMAKING -->
+    <div class="col-lg-8">
+        <!-- Assigned Volunteers Section -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header fw-bold bg-transparent d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people-fill me-2 text-teal"></i>Assigned Volunteers ({{ assigned_list | length }})</span>
+                {% if event.status == 'Completed' %}
+                <span class="text-success small fw-semibold"><i class="bi bi-check2-circle me-1"></i>Ready for Attendance marking</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Volunteer Name</th>
+                                <th>Email</th>
+                                <th>Gender / Age</th>
+                                {% if event.status == 'Completed' %}
+                                <th>Attendance Status</th>
+                                {% else %}
+                                <th>Availability Status</th>
+                                {% endif %}
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if assigned_list %}
+                                {% for app in assigned_list %}
+                                <tr>
+                                    <td class="ps-4"><strong>{{ app.volunteer.full_name }}</strong></td>
+                                    <td><span class="small text-muted">{{ app.volunteer.email }}</span></td>
+                                    <td><span class="small">{{ app.volunteer.gender }}</span></td>
+                                    
+                                    {% if event.status == 'Completed' %}
+                                    <td>
+                                        {% set att = attendance_map.get(app.volunteer_id) %}
+                                        <form action="{{ url_for('mark_attendance_manual', event_id=event.id, volunteer_id=app.volunteer_id) }}" method="POST" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <select name="status" class="form-select form-select-sm d-inline-block w-auto border-secondary" onchange="this.form.submit()">
+                                                <option value="Present" {% if att and att.status == 'Present' %}selected{% endif %}>Present</option>
+                                                <option value="Absent" {% if not att or att.status == 'Absent' %}selected{% endif %}>Absent</option>
+                                            </select>
+                                        </form>
+                                        {% if att and att.status == 'Present' %}
+                                            {% set cert = certificates_map.get(app.volunteer_id) %}
+                                            {% if cert %}
+                                            <a href="{{ url_for('download_certificate', id=cert.id) }}" class="btn btn-link btn-sm text-teal text-decoration-none p-0 ms-2" title="Download Certificate"><i class="bi bi-award-fill"></i> PDF</a>
+                                            {% else %}
+                                            <form action="{{ url_for('generate_certificate_route', event_id=event.id, volunteer_id=app.volunteer_id) }}" method="POST" class="d-inline ms-2">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-outline-teal btn-xs py-0 px-1.5" style="font-size: 0.7rem;"><i class="bi bi-plus-circle me-0.5"></i>Issue Cert</button>
+                                            </form>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    {% else %}
+                                    <td><span class="badge bg-success">Assigned</span></td>
+                                    {% endif %}
+                                    
+                                    <td class="text-end pe-4">
+                                        <form action="{{ url_for('update_application_status', app_id=app.id, status='Cancelled') }}" method="POST" onsubmit="return confirm('Remove volunteer from assignment?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove"><i class="bi bi-person-x"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No volunteers currently assigned. Use smart recommendations below to add some!</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Applications Section -->
+        {% if pending_list %}
+        <div class="card border-0 shadow-sm mb-4 border-warning border-opacity-25">
+            <div class="card-header fw-bold bg-transparent"><i class="bi bi-clock-history me-2 text-warning"></i>Pending Sign-ups ({{ pending_list | length }})</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Volunteer Name</th>
+                                <th>Skills</th>
+                                <th>General Availability</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for app in pending_list %}
+                            <tr>
+                                <td class="ps-4"><strong>{{ app.volunteer.full_name }}</strong></td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% if app.volunteer.skills %}
+                                            {% for skill in app.volunteer.skills.split(',') %}
+                                            <span class="badge bg-light text-dark border small" style="font-size: 0.65rem;">{{ skill.strip() }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-light text-primary border">{{ app.volunteer.availability }}</span></td>
+                                <td class="text-end pe-4">
+                                    <form action="{{ url_for('update_application_status', app_id=app.id, status='Approved') }}" method="POST" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check-lg me-1"></i>Approve</button>
+                                    </form>
+                                    <form action="{{ url_for('update_application_status', app_id=app.id, status='Rejected') }}" method="POST" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-lg"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Smart Matching Recommendations Section -->
+        {% if event.status == 'Upcoming' %}
+        <div class="card border-0 shadow-sm mb-4 border-primary border-opacity-25">
+            <div class="card-header fw-bold bg-transparent d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cpu me-2 text-primary"></i>Smart Match Recommendations</span>
+                <span class="text-muted small text-end">Prioritizes categories, skills & past attendance</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Volunteer Name</th>
+                                <th>Matching Skills</th>
+                                <th>Date Schedule</th>
+                                <th class="text-center">Match Percentage</th>
+                                <th class="text-end pe-4">Quick Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if recommendations %}
+                                {% for rec in recommendations %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <strong>{{ rec.volunteer.full_name }}</strong>
+                                        <div class="text-muted small">Experience: {{ rec.volunteer.participation_count }} events</div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% if rec.matching_skills %}
+                                                {% for skill in rec.matching_skills %}
+                                                <span class="badge bg-teal-subtle text-teal border border-teal-subtle small" style="font-size: 0.65rem;">{{ skill }}</span>
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="text-muted small">No overlapping keywords</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if rec.is_busy %}
+                                        <span class="badge bg-danger-subtle text-danger"><i class="bi bi-calendar-x me-1"></i>Busy (Another Event)</span>
+                                        {% else %}
+                                        <span class="badge bg-success-subtle text-success"><i class="bi bi-calendar-check me-1"></i>Available</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="fw-bold {% if rec.score >= 80 %}text-success{% elif rec.score >= 50 %}text-warning{% else %}text-secondary{% endif %}">
+                                            {{ rec.score }}%
+                                        </span>
+                                        <div class="progress mt-1" style="height: 4px; width: 80px; margin: 0 auto;">
+                                            <div class="progress-bar {% if rec.score >= 80 %}bg-success{% elif rec.score >= 50 %}bg-warning{% else %}bg-secondary{% endif %}" role="progressbar" style="width: {{ rec.score }}%" aria-valuenow="{{ rec.score }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <form action="{{ url_for('assign_volunteer_direct', event_id=event.id, volunteer_id=rec.volunteer.id) }}" method="POST">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm" {% if rec.is_busy %}onclick="return confirm('Volunteer is marked busy on this date. Assign anyway?');"{% endif %}>
+                                                <i class="bi bi-person-plus me-1"></i>Assign
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No recommendations available. All suitable volunteers might already be assigned.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT SIDE: RESOURCE ALLOCATIONS -->
+    <div class="col-lg-4">
+        <!-- Event QR Code (For Attendance) -->
+        <div class="card border-0 shadow-sm mb-4 text-center">
+            <div class="card-header fw-bold bg-transparent text-start"><i class="bi bi-qr-code me-2 text-primary"></i>Attendance QR Verification</div>
+            <div class="card-body py-4">
+                {% if qr_code_base64 %}
+                <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code" class="img-fluid border p-2 mb-2" style="max-width: 180px;">
+                <div class="p-2 bg-light rounded border text-break mb-3 mx-2" style="font-family: monospace; font-size: 0.75rem;">{{ qr_url }}</div>
+                <div class="mb-3">
+                    <button class="btn btn-outline-primary btn-sm" onclick="navigator.clipboard.writeText('{{ qr_url }}').then(() => { this.innerHTML = '<i class=\'bi bi-check2 me-1\'></i>Copied!'; setTimeout(() => { this.innerHTML = '<i class=\'bi bi-clipboard me-1\'></i>Copy Attendance Link'; }, 2000); });">
+                        <i class="bi bi-clipboard me-1"></i>Copy Attendance Link
+                    </button>
+                </div>
+                <p class="text-muted small mb-0">Volunteers scan this QR code using the portal to verify check-in instantly.</p>
+                {% else %}
+                <p class="text-muted py-3">QR Code not available</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Resource Allocations Table -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header fw-bold bg-transparent d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-box-seam me-2 text-indigo"></i>Allocated Resources</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Name</th>
+                                <th class="text-center">Allocated</th>
+                                <th class="text-center">Used</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if allocations %}
+                                {% for alloc in allocations %}
+                                <tr>
+                                    <td class="ps-3">
+                                        <strong>{{ alloc.resource.name }}</strong>
+                                        <div class="text-secondary small">{{ alloc.resource.category }}</div>
+                                    </td>
+                                    <td class="text-center fw-semibold">{{ alloc.quantity_allocated }}</td>
+                                    <td class="text-center">
+                                        <form action="{{ url_for('update_allocation_usage', alloc_id=alloc.id) }}" method="POST" class="d-inline-flex align-items-center">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="number" name="quantity_used" class="form-control form-control-sm text-center px-1" value="{{ alloc.quantity_used }}" style="width: 50px;" min="0" max="{{ alloc.quantity_allocated }}" step="1" onchange="this.form.submit()">
+                                        </form>
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <form action="{{ url_for('delete_allocation', id=alloc.id) }}" method="POST" onsubmit="return confirm('Release this resource from event?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-xs py-1 px-1.5 border-0"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No resources allocated to this event.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Allocation Form Card -->
+        {% if event.status == 'Upcoming' %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-header fw-bold bg-transparent"><i class="bi bi-plus-circle-fill me-2 text-teal"></i>Allocate Resource</div>
+            <div class="card-body">
+                <form action="{{ url_for('allocate_resource_event', event_id=event.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Select Resource</label>
+                        <select name="resource_id" class="form-select form-select-sm" required>
+                            <option value="">-- Choose Item --</option>
+                            {% for res in available_resources %}
+                            <option value="{{ res.id }}">{{ res.name }} (Avail: {{ res.remaining_quantity }} {{ res.category }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Quantity to Allocate</label>
+                        <input type="number" name="quantity_allocated" class="form-control form-control-sm" min="1" step="1" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-teal btn-sm w-100"><i class="bi bi-box-arrow-in-right me-1"></i>Allocate Item</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- EDIT EVENT MODAL (REPLICATED FOR INNER CONTROLS) -->
+<div class="modal fade" id="editEventModal{{ event.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold">Modify Event</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('edit_event', id=event.id) }}" method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Event Name</label>
+                        <input type="text" class="form-control" name="name" value="{{ event.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Description</label>
+                        <textarea class="form-control" name="description" rows="3" required>{{ event.description }}</textarea>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Category</label>
+                            <select class="form-select" name="category">
+                                <option value="Medical Camp" {% if event.category == 'Medical Camp' %}selected{% endif %}>Medical Camp</option>
+                                <option value="Education" {% if event.category == 'Education' %}selected{% endif %}>Education</option>
+                                <option value="Disaster Relief" {% if event.category == 'Disaster Relief' %}selected{% endif %}>Disaster Relief</option>
+                                <option value="Food Drive" {% if event.category == 'Food Drive' %}selected{% endif %}>Food Drive</option>
+                                <option value="Fundraising" {% if event.category == 'Fundraising' %}selected{% endif %}>Fundraising</option>
+                                <option value="Environment" {% if event.category == 'Environment' %}selected{% endif %}>Environment</option>
+                                <option value="Other" {% if event.category == 'Other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Required Volunteers</label>
+                            <input type="number" class="form-control" name="required_volunteers" value="{{ event.required_volunteers }}" min="1" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Date</label>
+                            <input type="date" class="form-control" name="date" value="{{ event.date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Time</label>
+                            <input type="time" class="form-control" name="time" value="{{ event.time.strftime('%H:%M') }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Venue</label>
+                        <input type="text" class="form-control" name="venue" value="{{ event.venue }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Status</label>
+                        <select class="form-select" name="status">
+                            <option value="Upcoming" {% if event.status == 'Upcoming' %}selected{% endif %}>Upcoming</option>
+                            <option value="Completed" {% if event.status == 'Completed' %}selected{% endif %}>Completed</option>
+                            <option value="Closed" {% if event.status == 'Closed' %}selected{% endif %}>Closed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Check-In - NGO Connect</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+        <style>
+        :root {
+            --bg-color: #f8fafc;
+            --text-color: #1e293b;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --primary-color: #0d9488;
+            --primary-hover: #0f766e;
+        }
+        [data-theme="dark"] {
+            --bg-color: #090d16;
+            --text-color: #f1f5f9;
+            --card-bg: #0f172a;
+            --border-color: #1e293b;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            overflow-x: hidden;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        .checkin-card {
+            width: 100%;
+            max-width: 480px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .logo-circle-public {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #ffffff;
+            margin: 0 auto 10px auto;
+            transition: all 0.2s ease;
+        }
+        .logo-circle-public img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .btn-teal {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+        .btn-teal:hover {
+            background-color: var(--primary-hover);
+            color: white;
+        }
+        form input, form button {
+            width: 100%;
+        }
+        
+        /* Mobile-first responsive overrides */
+        @media (max-width: 767px) {
+            body {
+                padding: 10px;
+            }
+            .checkin-card {
+                width: 95%;
+                max-width: 420px;
+                padding: 20px !important;
+            }
+            .logo-circle-public {
+                width: 70px;
+                height: 70px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="checkin-card p-4">
+        <!-- Logo Header -->
+        <div class="text-center mb-4">
+            <div class="logo-circle-public">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="NGO Connect Logo">
+            </div>
+            <h4 class="fw-bold mb-0 mt-2">NGO Connect</h4>
+            <span class="text-muted small">Event Check-In Portal</span>
+        </div>
+
+        {% if error %}
+            <!-- Error Alert -->
+            <div class="alert alert-danger border-0 shadow-sm text-center mb-4" role="alert">
+                <i class="bi bi-x-circle-fill me-2 fs-5 align-middle"></i>
+                <span class="align-middle fw-semibold">{{ error }}</span>
+            </div>
+        {% endif %}
+
+        {% if success %}
+            <!-- Success Screen -->
+            <div class="text-center py-3">
+                <span class="text-success fs-1 d-block mb-3"><i class="bi bi-check-circle-fill"></i></span>
+                <h5 class="fw-bold text-success">Attendance Marked Successfully</h5>
+                <hr class="my-4">
+                <div class="text-start px-2">
+                    <div class="mb-2"><strong>Volunteer Name:</strong> <span class="text-muted">{{ volunteer_name }}</span></div>
+                    <div class="mb-2"><strong>Volunteer ID:</strong> <span class="text-muted">VOL-{{ "%04d" | format(volunteer_id) }}</span></div>
+                    <div class="mb-2"><strong>Event Name:</strong> <span class="text-muted">{{ event.name }}</span></div>
+                    <div class="mb-3"><strong>Check-In Time:</strong> <span class="text-muted">{{ checkin_time }}</span></div>
+                </div>
+                <div class="mt-4">
+                    <a href="/login" class="btn btn-teal btn-sm px-4">Go to Portal Log In</a>
+                </div>
+            </div>
+        {% else %}
+            {% if event %}
+                <!-- Event info -->
+                <div class="card bg-light border-0 p-3 mb-4 rounded-3 text-dark">
+                    <h6 class="fw-bold mb-2 text-uppercase text-secondary small">Check-In for Event:</h6>
+                    <h5 class="fw-bold text-teal mb-2">{{ event.name }}</h5>
+                    <div class="small mb-1"><i class="bi bi-calendar3 me-2"></i>Date: {{ event.date.strftime('%Y-%m-%d') }}</div>
+                    <div class="small"><i class="bi bi-geo-alt-fill me-2"></i>Location: {{ event.venue }}</div>
+                </div>
+
+                <!-- Form -->
+                <form action="/attendance/scan/{{ event.id }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label for="volunteer_code" class="form-label fw-semibold small">Volunteer ID</label>
+                        <input type="text" name="volunteer_code" id="volunteer_code" class="form-control border-secondary" placeholder="e.g. VOL-0001 or 1" required>
+                        <div class="form-text text-muted small mt-1">Enter your unique volunteer ID.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="mobile_number" class="form-label fw-semibold small">Registered Mobile Number</label>
+                        <input type="tel" name="mobile_number" id="mobile_number" class="form-control border-secondary" placeholder="10-digit Indian Mobile Number" required maxlength="10" minlength="10" inputmode="numeric" pattern="[6-9][0-9]{9}" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);">
+                        <div class="form-text text-muted small mt-1">Enter your registered mobile number.</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-teal w-100 py-2.5 fw-bold"><i class="bi bi-shield-check me-2"></i>Verify & Check-In</button>
+                </form>
+            {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-exclamation-triangle fs-1 d-block mb-3 text-warning"></i>
+                    No event loaded. Please scan a valid check-in QR code.
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <script>
+        const theme = localStorage.getItem("theme") || "light";
+        document.documentElement.setAttribute("data-theme", theme);
+    </script>
+</body>
+</html>

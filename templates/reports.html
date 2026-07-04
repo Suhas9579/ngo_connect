@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}NGO Activity Reports{% endblock %}
+
+{% block content %}
+<!-- HEADER -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 text-gray-800 fw-bold">NGO Data Exports & Reports</h1>
+        <p class="text-muted">Extract audit sheets, donation ledgers, and attendance rosters in PDF and CSV format.</p>
+    </div>
+</div>
+
+<!-- Grid of Reports -->
+<div class="row g-4">
+    
+    <!-- Report 1: Volunteer Participation -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <span class="fs-4 text-teal mb-2"><i class="bi bi-people-fill"></i></span>
+                <h5 class="fw-bold text-dark mb-1">1. Volunteer Participation</h5>
+                <p class="text-muted small flex-grow-1">Lists all volunteers registered with their contact information, availability status, skills profile, and cumulative events attended.</p>
+                <hr>
+                <form action="{{ url_for('export_report', report_type='volunteer') }}" method="GET" class="mt-auto">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Filter by Availability</label>
+                        <select name="availability" class="form-select form-select-sm">
+                            <option value="">-- All Availability --</option>
+                            <option value="Weekdays">Weekdays</option>
+                            <option value="Weekends">Weekends</option>
+                            <option value="All">All Availability</option>
+                            <option value="Evenings">Evenings</option>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="format" value="pdf" class="btn btn-primary btn-sm w-100"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report 2: Event Metrics -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <span class="fs-4 text-primary mb-2"><i class="bi bi-calendar-event-fill"></i></span>
+                <h5 class="fw-bold text-dark mb-1">2. NGO Event Report</h5>
+                <p class="text-muted small flex-grow-1">Contains event listings, schedules, required vs. assigned staff capacities, venues, and status markers.</p>
+                <hr>
+                <form action="{{ url_for('export_report', report_type='event') }}" method="GET" class="mt-auto">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Filter by Category</label>
+                        <select name="category" class="form-select form-select-sm">
+                            <option value="">-- All Categories --</option>
+                            <option value="Medical Camp">Medical Camp</option>
+                            <option value="Education">Education</option>
+                            <option value="Disaster Relief">Disaster Relief</option>
+                            <option value="Food Drive">Food Drive</option>
+                            <option value="Fundraising">Fundraising</option>
+                            <option value="Environment">Environment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="format" value="pdf" class="btn btn-primary btn-sm w-100"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report 3: Donation Ledger -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <span class="fs-4 text-rose mb-2"><i class="bi bi-cash-stack"></i></span>
+                <h5 class="fw-bold text-dark mb-1">3. Donation Audit Report</h5>
+                <p class="text-muted small flex-grow-1">A detailed list of donor contributions, transaction dates, values, payment methods, and target funding purposes.</p>
+                <hr>
+                <form action="{{ url_for('export_report', report_type='donation') }}" method="GET" class="mt-auto">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Start Date</label>
+                            <input type="date" name="start_date" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">End Date</label>
+                            <input type="date" name="end_date" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="format" value="pdf" class="btn btn-primary btn-sm w-100"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report 4: Attendance Roster -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <span class="fs-4 text-indigo mb-2"><i class="bi bi-qr-code-scan"></i></span>
+                <h5 class="fw-bold text-dark mb-1">4. Attendance Ledger</h5>
+                <p class="text-muted small flex-grow-1">Summarizes event check-in logs, manual updates, timestamps, and individual volunteer verification percentages.</p>
+                <hr>
+                <form action="{{ url_for('export_report', report_type='attendance') }}" method="GET" class="mt-auto">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Target Event</label>
+                        <select name="event_id" class="form-select form-select-sm">
+                            <option value="">-- All Events --</option>
+                            {% for ev in events_list %}
+                            <option value="{{ ev.id }}">{{ ev.name }} ({{ ev.date.strftime('%Y-%m-%d') }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="format" value="pdf" class="btn btn-primary btn-sm w-100"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report 5: Resource Allocation -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <span class="fs-4 text-warning mb-2"><i class="bi bi-box-seam-fill"></i></span>
+                <h5 class="fw-bold text-dark mb-1">5. Resource Audit Report</h5>
+                <p class="text-muted small flex-grow-1">Tracks inventories allocated to active events, quantity changes, and lists quantities used vs. quantities remaining.</p>
+                <hr>
+                <form action="{{ url_for('export_report', report_type='resource') }}" method="GET" class="mt-auto">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Resource Category</label>
+                        <select name="category" class="form-select form-select-sm">
+                            <option value="">-- All Categories --</option>
+                            <option value="Food">Food</option>
+                            <option value="Clothes">Clothes</option>
+                            <option value="Books">Books</option>
+                            <option value="Medical Supplies">Medical Supplies</option>
+                            <option value="Educational Kits">Educational Kits</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="format" value="pdf" class="btn btn-primary btn-sm w-100"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report 6: Monthly NGO Activity Summary -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border shadow-sm border-teal border-opacity-25">
+            <div class="card-body d-flex flex-column">
+                <span class="fs-4 text-teal mb-2"><i class="bi bi-pie-chart-fill"></i></span>
+                <h5 class="fw-bold text-dark mb-1">6. Monthly NGO Activity</h5>
+                <p class="text-muted small flex-grow-1">A consolidated overview of the NGO's performance for the selected month, combining total new volunteers, donation totals, and events closed.</p>
+                <hr>
+                <form action="{{ url_for('export_report', report_type='activity') }}" method="GET" class="mt-auto">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Select Year</label>
+                            <select name="year" class="form-select form-select-sm">
+                                <option value="2026">2026</option>
+                                <option value="2027">2027</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Select Month</label>
+                            <select name="month" class="form-select form-select-sm">
+                                <option value="1">January</option>
+                                <option value="2">February</option>
+                                <option value="3">March</option>
+                                <option value="4">April</option>
+                                <option value="5">May</option>
+                                <option value="6" selected>June</option>
+                                <option value="7">July</option>
+                                <option value="8">August</option>
+                                <option value="9">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="format" value="pdf" class="btn btn-primary btn-sm w-100"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-teal btn-sm w-100"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
