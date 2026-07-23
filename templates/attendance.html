@@ -228,7 +228,7 @@
                                         <div class="list-group-item p-3 border-0 border-bottom">
                                             <div class="d-flex w-100 justify-content-between align-items-center mb-1">
                                                 <span class="fw-bold text-dark">{{ log.volunteer.full_name }}</span>
-                                                <small class="text-teal fw-semibold">{{ log.timestamp | ist_time }}</small>
+                                                <small class="text-teal fw-semibold">{{ log.timestamp | attendance_date }}</small>
                                             </div>
                                             <p class="mb-0 small text-muted text-truncate">{{ log.event.name }}</p>
                                         </div>

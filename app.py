@@ -61,9 +61,21 @@ def format_ist(dt, format_str='%d %b %Y, %I:%M %p'):
 def format_ist_time_only(dt):
     return format_ist(dt, '%I:%M %p IST')
 
+def format_full_attendance_date(dt):
+    if not dt:
+        return "Not Available"
+    try:
+        ist_dt = convert_to_ist(dt)
+        date_str = ist_dt.strftime("%d %b %Y")
+        time_str = ist_dt.strftime("%I:%M %p")
+        return f"📅 {date_str} • 🕘 {time_str} IST"
+    except Exception:
+        return "Not Available"
+
 app.jinja_env.filters['ist'] = format_ist
 app.jinja_env.filters['to_ist'] = convert_to_ist
 app.jinja_env.filters['ist_time'] = format_ist_time_only
+app.jinja_env.filters['attendance_date'] = format_full_attendance_date
 
 # Initialize Extensions
 db.init_app(app)
@@ -2017,7 +2029,7 @@ def scan_attendance(event_id):
         success=True,
         volunteer_name=vol.full_name,
         volunteer_id=vol.id,
-        checkin_time=format_ist(checkin_time)
+        checkin_time=format_full_attendance_date(checkin_time)
     )
 
 
@@ -2119,7 +2131,7 @@ def attendance_api_stats():
     for r in recent_records:
         recent_list.append({
             'volunteer_name': r.volunteer.full_name,
-            'time': format_ist(r.timestamp, '%I:%M %p IST'),
+            'time': format_full_attendance_date(r.timestamp),
             'event_name': r.event.name
         })
         
@@ -2182,7 +2194,7 @@ def attendance_api_logs():
             'volunteer_id': f"VOL-{l.volunteer.id:04d}",
             'event_name': l.event.name,
             'event_date': l.event.date.strftime('%Y-%m-%d'),
-            'check_in_time': format_ist(l.timestamp, '%I:%M %p IST'),
+            'check_in_time': format_full_attendance_date(l.timestamp),
             'status': l.status,
             'ip_address': l.ip_address or '127.0.0.1',
             'device_info': l.device_info or 'Desktop',
@@ -2337,7 +2349,7 @@ def export_attendance_report():
                 f"VOL-{l.volunteer.id:04d}",
                 l.event.name,
                 l.event.date.strftime('%Y-%m-%d'),
-                format_ist(l.timestamp, '%I:%M %p IST'),
+                format_full_attendance_date(l.timestamp),
                 l.status,
                 l.ip_address or '127.0.0.1',
                 l.device_info or 'Desktop',
@@ -2359,7 +2371,7 @@ def export_attendance_report():
                 f"VOL-{l.volunteer.id:04d}",
                 l.event.name,
                 l.event.date.strftime('%Y-%m-%d'),
-                format_ist(l.timestamp, '%I:%M %p IST'),
+                format_full_attendance_date(l.timestamp),
                 l.status,
                 l.ip_address or '127.0.0.1',
                 l.device_info or 'Desktop'
@@ -2621,7 +2633,7 @@ def export_report(report_type):
                 a.event.date.strftime('%Y-%m-%d'),
                 a.status,
                 a.marked_by,
-                format_ist(a.timestamp, '%I:%M %p IST')
+                format_full_attendance_date(a.timestamp)
             ])
             
     # 5. RESOURCE ALLOCATION

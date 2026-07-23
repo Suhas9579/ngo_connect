@@ -340,5 +340,81 @@ class TestNGOUpdates(unittest.TestCase):
         db.session.refresh(valid_don)
         self.assertNotEqual(valid_don.donation_date.strftime('%Y-%m-%d'), future_date)
 
+    def test_attendance_timestamp_formatting(self):
+        # Setup admin user
+        admin_user = User.query.filter_by(email="admin_test@ngo.com").first()
+        if not admin_user:
+            admin_user = User(email="admin_test@ngo.com", role="admin")
+            admin_user.set_password("adminpass")
+            db.session.add(admin_user)
+            db.session.commit()
+
+        client = app.test_client()
+        client.post('/login', data={'email': 'admin_test@ngo.com', 'password': 'adminpass'})
+        
+        import pytz
+        from datetime import datetime
+        
+        event = Event.query.first()
+        if not event:
+            from datetime import date, time
+            event = Event(
+                name="Test Event",
+                description="Test Description",
+                category="Food Drive",
+                date=date(2026, 7, 10),
+                time=time(10, 0),
+                venue="Test Venue",
+                required_volunteers=5,
+                status="Upcoming"
+            )
+            db.session.add(event)
+            db.session.commit()
+            
+        volunteer = Volunteer.query.first()
+        if not volunteer:
+            user = User.query.filter_by(email="test_vol@ngo.com").first()
+            if not user:
+                user = User(email="test_vol@ngo.com", role="volunteer")
+                user.set_password("pass")
+                db.session.add(user)
+                db.session.commit()
+            from datetime import date
+            volunteer = Volunteer(
+                user_id=user.id,
+                full_name="Test Volunteer",
+                email="test_vol@ngo.com",
+                mobile_number="9876543210",
+                gender="Male",
+                date_of_birth=date(2000, 1, 1),
+                availability="All"
+            )
+            db.session.add(volunteer)
+            db.session.commit()
+        
+        att = Attendance(
+            volunteer_id=volunteer.id,
+            event_id=event.id,
+            date=event.date,
+            status='Present',
+            marked_by='Manual',
+            timestamp=datetime(2026, 7, 10, 3, 2, 0)
+        )
+        db.session.add(att)
+        db.session.commit()
+        
+        resp_logs = client.get('/attendance/api/logs')
+        self.assertEqual(resp_logs.status_code, 200)
+        logs = resp_logs.json['logs']
+        
+        found_att = None
+        for l in logs:
+            if l['volunteer_name'] == volunteer.full_name and l['check_in_time'] == "📅 10 Jul 2026 • 🕘 08:32 AM IST":
+                found_att = l
+                break
+                
+        self.assertIsNotNone(found_att)
+        self.assertEqual(found_att['check_in_time'], "📅 10 Jul 2026 • 🕘 08:32 AM IST")
+
 if __name__ == '__main__':
     unittest.main()
