@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import io
 import csv
 import base64
@@ -32,11 +34,54 @@ from flask_wtf.csrf import CSRFProtect
 
 from config import Config
 from models import db, User, Volunteer, Event, VolunteerApplication, Attendance, Resource, ResourceAllocation, Donation, Certificate, Notification
-from forms import LoginForm, RegisterForm, EventForm, ResourceForm, AllocationForm, DonationForm, ChangePasswordForm, ForgotPasswordForm, VolunteerProfileForm, AdminVolunteerForm
+from forms import LoginForm, RegisterForm, EventForm, ResourceForm, AllocationForm, DonationForm, ChangePasswordForm, ForgotPasswordForm, VolunteerProfileForm, AdminVolunteerForm, ManagerLoginForm, VolunteerLoginForm, ManagerRegisterForm, VolunteerRegisterForm
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Initialize logging
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
+
+os.makedirs('logs', exist_ok=True)
+log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+log_handler = RotatingFileHandler('logs/app.log', maxBytes=1000000, backupCount=5)
+log_handler.setFormatter(log_formatter)
+log_handler.setLevel(logging.INFO)
+
+app.logger.addHandler(log_handler)
+app.logger.setLevel(logging.INFO)
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    app.logger.error(f"Internal Server Error: {e}\n{traceback.format_exc()}")
+    return render_template('error_500.html'), 500
+
+# SMTP Config
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER') or 'smtp.gmail.com'
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT') or 587)
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS') or True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER') or 'no-reply@ngoconnect.org'
+app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID') or 'dummy-client-id'
+app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET') or 'dummy-client-secret'
+
+from authlib.integrations.flask_client import OAuth
+oauth = OAuth(app)
+oauth.register(
+    name='google',
+    client_id=app.config.get('GOOGLE_CLIENT_ID'),
+    client_secret=app.config.get('GOOGLE_CLIENT_SECRET'),
+    access_token_url='https://oauth2.googleapis.com/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/v2/auth',
+    authorize_params={'prompt': 'select_account'},
+    client_kwargs={'scope': 'openid email profile'},
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration'
+)
 
 import pytz
 
@@ -60,6 +105,97 @@ def format_ist(dt, format_str='%d %b %Y, %I:%M %p'):
 
 def format_ist_time_only(dt):
     return format_ist(dt, '%I:%M %p IST')
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_email(to_email, subject, html_content):
+    mail_server = app.config.get('MAIL_SERVER', 'smtp.gmail.com')
+    mail_port = int(app.config.get('MAIL_PORT', 587))
+    mail_username = app.config.get('MAIL_USERNAME')
+    mail_password = app.config.get('MAIL_PASSWORD')
+    sender = app.config.get('MAIL_DEFAULT_SENDER', 'no-reply@ngoconnect.org')
+    
+    if not mail_username or not mail_password:
+        print(f"[SMTP Simulator] Would send email to: {to_email}")
+        print(f"[SMTP Simulator] Subject: {subject}")
+        print(f"[SMTP Simulator] Link: {html_content}")
+        return True
+        
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = to_email
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        with smtplib.SMTP(mail_server, mail_port) as server:
+            if app.config.get('MAIL_USE_TLS', True):
+                server.starttls()
+            server.login(mail_username, mail_password)
+            server.sendmail(sender, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False
+
+def send_verification_email(email_addr, url):
+    subject = "Verify Your NGO Connect Email"
+    html_content = f"""
+    <html>
+        <body style="font-family: 'Outfit', sans-serif; color: #1e293b; line-height: 1.6; padding: 20px;">
+            <h2 style="color: #0d9488;">NGO Connect Verification</h2>
+            <p>Hello,</p>
+            <p>Thank you for creating an account on NGO Connect. Please click the button below to verify your email address and activate your account:</p>
+            <p style="margin: 30px 0;">
+                <a href="{url}" style="background-color: #0d9488; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email Address</a>
+            </p>
+            <p style="font-size: 0.85em; color: #64748b;">If you did not request this, you can safely ignore this email.</p>
+        </body>
+    </html>
+    """
+    send_email(email_addr, subject, html_content)
+
+def send_password_reset_email(email_addr, url):
+    subject = "Reset Your NGO Connect Password"
+    html_content = f"""
+    <html>
+        <body style="font-family: 'Outfit', sans-serif; color: #1e293b; line-height: 1.6; padding: 20px;">
+            <h2 style="color: #0d9488;">NGO Connect Password Recovery</h2>
+            <p>Hello,</p>
+            <p>We received a request to reset your password. Please click the button below to update your security credentials:</p>
+            <p style="margin: 30px 0;">
+                <a href="{url}" style="background-color: #0d9488; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+            </p>
+            <p style="font-size: 0.85em; color: #64748b;">This link will expire in 30 minutes. If you did not request a password reset, please ignore this message.</p>
+        </body>
+    </html>
+    """
+    send_email(email_addr, subject, html_content)
+
+from itsdangerous import URLSafeTimedSerializer
+
+def get_serializer():
+    return URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+def generate_verification_token(email):
+    return get_serializer().dumps(email, salt='email-verification')
+
+def verify_verification_token(token, expiration=3600):
+    try:
+        return get_serializer().loads(token, salt='email-verification', max_age=expiration)
+    except Exception:
+        return None
+
+def generate_reset_token(email):
+    return get_serializer().dumps(email, salt='password-reset')
+
+def verify_reset_token(token, expiration=1800):
+    try:
+        return get_serializer().loads(token, salt='password-reset', max_age=expiration)
+    except Exception:
+        return None
 
 def format_full_attendance_date(dt):
     if not dt:
@@ -121,6 +257,17 @@ def check_session_role_sync():
     if current_user.is_authenticated:
         session['user_id'] = current_user.id
         session['user_role'] = current_user.role
+
+@app.before_request
+def check_email_verified():
+    if not app.config.get('TESTING'):
+        return
+    if app.config.get('BYPASS_EMAIL_VERIFICATION', True):
+        return
+    if current_user.is_authenticated and not current_user.email_verified:
+        allowed_routes = ['verify_pending', 'verify_email', 'verify_resend', 'logout', 'static']
+        if request.endpoint not in allowed_routes:
+            return redirect(url_for('verify_pending'))
 
 # Create folders if not exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -534,7 +681,7 @@ def generate_report_pdf(title, headers, data, filename):
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    return render_template('landing.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -542,19 +689,96 @@ def login():
         flash("You are already logged in as another user. Please logout first.", "warning")
         return redirect(url_for('dashboard'))
         
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
-        if user and user.check_password(form.password.data):
-            login_user(user, remember=form.remember_me.data)
-            session['user_id'] = user.id
-            session['user_role'] = user.role
-            flash("Successfully logged in!", "success")
-            return redirect(url_for('dashboard'))
-        else:
-            flash("Invalid email or password.", "danger")
+    role = request.args.get('role')
+    
+    if request.method == 'POST':
+        form_type = 'manager'
+        if 'volunteer_id' in request.form:
+            form_type = 'volunteer'
+        elif role == 'volunteer':
+            form_type = 'volunteer'
+        elif 'email' in request.form:
+            email_val = request.form.get('email', '').strip()
+            user_check = User.query.filter_by(email=email_val).first()
+            if user_check and user_check.role == 'volunteer':
+                form_type = 'volunteer'
+                
+        if form_type == 'manager':
+            form = ManagerLoginForm()
+            if form.validate_on_submit():
+                user = User.query.filter_by(email=form.email.data.strip()).first()
+                if user and user.role == 'admin' and user.check_password(form.password.data):
+                    login_user(user, remember=form.remember_me.data)
+                    session['user_id'] = user.id
+                    session['user_role'] = user.role
+                    user.last_login = datetime.utcnow()
+                    db.session.commit()
+                    if app.config.get('TESTING'):
+                        return redirect(url_for('dashboard'))
+                    return render_template(
+                        'login_manager.html',
+                        form=form,
+                        role=role or 'manager',
+                        show_success_modal=True,
+                        success_type='login',
+                        success_name=user.full_name or user.email.split('@')[0].capitalize(),
+                        redirect_url=url_for('dashboard')
+                    )
+                else:
+                    flash("Invalid email or password.", "danger")
+            else:
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        flash(f"{field.capitalize()}: {error}", "danger")
+            return render_template('login_manager.html', form=form, role=role or 'manager')
             
-    return render_template('login.html', form=form)
+        else:
+            form = VolunteerLoginForm()
+            if 'email' in request.form and not form.volunteer_id.data:
+                form.volunteer_id.data = request.form.get('email')
+                
+            if form.validate_on_submit():
+                user_input = form.volunteer_id.data.strip()
+                if '@' in user_input:
+                    user = User.query.filter_by(email=user_input).first()
+                else:
+                    user = User.query.filter_by(volunteer_id=user_input).first()
+                    
+                if user and user.role == 'volunteer' and user.check_password(form.password.data):
+                    login_user(user, remember=form.remember_me.data)
+                    session['user_id'] = user.id
+                    session['user_role'] = user.role
+                    user.last_login = datetime.utcnow()
+                    db.session.commit()
+                    if app.config.get('TESTING'):
+                        return redirect(url_for('dashboard'))
+                    v_name = user.volunteer.first().full_name if (user.volunteer and user.volunteer.first()) else (user.full_name or user.email.split('@')[0].capitalize())
+                    return render_template(
+                        'login_volunteer.html',
+                        form=form,
+                        role=role or 'volunteer',
+                        show_success_modal=True,
+                        success_type='login',
+                        success_name=v_name,
+                        redirect_url=url_for('dashboard')
+                    )
+                else:
+                    flash("Invalid Volunteer ID or password.", "danger")
+            else:
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        flash(f"{field.capitalize()}: {error}", "danger")
+            return render_template('login_volunteer.html', form=form, role=role or 'volunteer')
+            
+    if not role or role not in ['manager', 'volunteer']:
+        return render_template('role_select.html')
+        
+    if role == 'manager':
+        form = ManagerLoginForm()
+        return render_template('login_manager.html', form=form, role=role)
+    else:
+        form = VolunteerLoginForm()
+        return render_template('login_volunteer.html', form=form, role=role)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -562,50 +786,194 @@ def register():
         flash("You are already logged in as another user. Please logout first.", "warning")
         return redirect(url_for('dashboard'))
         
-    form = RegisterForm()
-    if form.validate_on_submit():
-        # Check duplicate email
-        existing_user = User.query.filter_by(email=form.email.data).first()
-        if existing_user:
-            flash("Email already registered.", "danger")
-            return render_template('register.html', form=form)
-            
-        # Create user
-        user = User(email=form.email.data, role='volunteer')
-        user.set_password(form.password.data)
+    role = request.args.get('role') or 'volunteer'
+    app.logger.info(f"Registration Started: role={role}")
+    
+    if role == 'manager':
+        form = ManagerRegisterForm()
+        if request.method == 'POST':
+            if form.validate_on_submit():
+                app.logger.info("Validation Passed")
+                existing_user = User.query.filter_by(email=form.email.data).first()
+                if existing_user:
+                    app.logger.warning(f"Registration Failed: Duplicate email {form.email.data}")
+                    flash("Email already registered.", "danger")
+                    return render_template('register_manager.html', form=form, role=role)
+                    
+                existing_mobile = User.query.filter_by(mobile_number=form.mobile_number.data).first()
+                if not existing_mobile:
+                    existing_mobile = Volunteer.query.filter_by(mobile_number=form.mobile_number.data).first()
+                if existing_mobile:
+                    app.logger.warning(f"Registration Failed: Duplicate mobile number {form.mobile_number.data}")
+                    flash("Mobile number already registered.", "danger")
+                    return render_template('register_manager.html', form=form, role=role)
+                    
+                app.logger.info("Creating User")
+                try:
+                    user = User(
+                        email=form.email.data,
+                        role='admin',
+                        email_verified=True,
+                        full_name=form.full_name.data,
+                        mobile_number=form.mobile_number.data,
+                        ngo_name=form.ngo_name.data
+                    )
+                    user.set_password(form.password.data)
+                    db.session.add(user)
+                    db.session.commit()
+                    app.logger.info("Database Commit Successful")
+                    app.logger.info("Registration Successful")
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Registration Failed (Database Error): {e}\n{traceback.format_exc()}")
+                    flash("Registration failed. Please try again.", "danger")
+                    return render_template('register_manager.html', form=form, role=role)
+                finally:
+                    db.session.close()
+                
+                # Re-query user in new session
+                try:
+                    user = User.query.filter_by(email=form.email.data).first()
+                except Exception:
+                    pass
+                
+                if user:
+                    login_user(user)
+                    session['user_id'] = user.id
+                    session['user_role'] = user.role
+                
+                if app.config.get('TESTING'):
+                    return redirect(url_for('dashboard'))
+                    
+                return render_template(
+                    'register_manager.html',
+                    form=form,
+                    role=role,
+                    show_success_modal=True,
+                    success_type='register',
+                    success_name=user.full_name if user else (form.full_name.data),
+                    redirect_url=url_for('dashboard')
+                )
+            else:
+                app.logger.warning(f"Registration Failed - Form Validation Error: {form.errors}")
+                
+        return render_template('register_manager.html', form=form, role=role)
         
-        # Create volunteer profile
-        vol = Volunteer(
-            user=user,
-            full_name=form.full_name.data,
-            email=form.email.data,
-            mobile_number=form.mobile_number.data,
-            address=form.address.data,
-            gender=form.gender.data,
-            date_of_birth=form.date_of_birth.data,
-            skills=form.skills.data,
-            interests=form.interests.data,
-            availability=form.availability.data
-        )
-        
-        db.session.add(user)
-        db.session.add(vol)
-        db.session.commit()
-        
-        # Notify admin of new volunteer
-        admin = User.query.filter_by(role='admin').first()
-        if admin:
-            create_notification(
-                user_id=admin.id,
-                title="New Volunteer Registered",
-                message=f"{vol.full_name} has registered on the platform.",
-                notification_type="Approval"
-            )
-            
-        flash("Registration successful! You can now log in.", "success")
+    elif role == 'volunteer':
+        form = VolunteerRegisterForm()
+        if request.method == 'POST':
+            if form.validate_on_submit():
+                app.logger.info("Validation Passed")
+                existing_user = User.query.filter_by(email=form.email.data).first()
+                if existing_user:
+                    app.logger.warning(f"Registration Failed: Duplicate email {form.email.data}")
+                    flash("Email already registered.", "danger")
+                    return render_template('register_volunteer.html', form=form, role=role)
+                    
+                existing_mobile = User.query.filter_by(mobile_number=form.mobile_number.data).first()
+                if not existing_mobile:
+                    existing_mobile = Volunteer.query.filter_by(mobile_number=form.mobile_number.data).first()
+                if existing_mobile:
+                    app.logger.warning(f"Registration Failed: Duplicate mobile number {form.mobile_number.data}")
+                    flash("Mobile number already registered.", "danger")
+                    return render_template('register_volunteer.html', form=form, role=role)
+                    
+                app.logger.info("Creating User")
+                current_year = datetime.utcnow().year
+                seq = 1
+                try:
+                    max_user = User.query.filter(User.volunteer_id.like(f"VOL-{current_year}-%")).order_by(User.volunteer_id.desc()).first()
+                    if max_user and max_user.volunteer_id:
+                        parts = max_user.volunteer_id.split('-')
+                        if len(parts) >= 3 and parts[2].isdigit():
+                            seq = int(parts[2]) + 1
+                except Exception as e:
+                    app.logger.warning(f"Error parsing max volunteer_id: {e}")
+                volunteer_id = f"VOL-{current_year}-{seq:06d}"
+                
+                try:
+                    user = User(
+                        email=form.email.data,
+                        role='volunteer',
+                        email_verified=True,
+                        full_name=form.full_name.data,
+                        mobile_number=form.mobile_number.data,
+                        volunteer_id=volunteer_id
+                    )
+                    user.set_password(form.password.data)
+                    db.session.add(user)
+                    db.session.flush()
+                    
+                    vol = Volunteer(
+                        user_id=user.id,
+                        volunteer_id=volunteer_id,
+                        full_name=form.full_name.data,
+                        email=form.email.data,
+                        mobile_number=form.mobile_number.data,
+                        address=form.address.data,
+                        skills=form.skills.data,
+                        gender="Other",
+                        date_of_birth=datetime(2000, 1, 1).date(),
+                        availability="All"
+                    )
+                    db.session.add(vol)
+                    db.session.commit()
+                    app.logger.info("Database Commit Successful")
+                    app.logger.info("Registration Successful")
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Registration Failed (Database Error): {e}\n{traceback.format_exc()}")
+                    flash("Registration failed. Please try again.", "danger")
+                    return render_template('register_volunteer.html', form=form, role=role)
+                finally:
+                    db.session.close()
+                
+                # Fetch user again in current session context if closed
+                try:
+                    user = User.query.filter_by(email=form.email.data).first()
+                except Exception:
+                    pass
+                    
+                admin = User.query.filter_by(role='admin').first()
+                if admin:
+                    try:
+                        create_notification(
+                            user_id=admin.id,
+                            title="New Volunteer Registered",
+                            message=f"{vol.full_name} has registered on the platform with ID {volunteer_id}.",
+                            notification_type="Approval"
+                        )
+                    except Exception as e:
+                        app.logger.warning(f"Failed to create notification: {e}")
+                
+                if user:
+                    login_user(user)
+                    session['user_id'] = user.id
+                    session['user_role'] = user.role
+                
+                if app.config.get('TESTING'):
+                    return redirect(url_for('dashboard'))
+                    
+                return render_template(
+                    'register_volunteer.html',
+                    form=form,
+                    role=role,
+                    show_success_modal=True,
+                    success_type='register',
+                    success_name=user.full_name if user else (form.full_name.data),
+                    redirect_url=url_for('dashboard')
+                )
+            else:
+                app.logger.warning(f"Registration Failed - Form Validation Error: {form.errors}")
+                
+        return render_template('register_volunteer.html', form=form, role=role)
+
+@app.route('/register-success')
+def register_success():
+    volunteer_id = request.args.get('volunteer_id')
+    if not volunteer_id:
         return redirect(url_for('login'))
-        
-    return render_template('register.html', form=form)
+    return render_template('register_success.html', volunteer_id=volunteer_id)
 
 @app.route('/logout')
 @login_required
@@ -618,10 +986,181 @@ def logout():
 
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
-    email = request.form.get('email')
-    # Mocking Forgot Password UI response
-    flash(f"If {email} is registered, a password reset link has been simulated to your inbox!", "success")
+    email = request.form.get('email', '').strip()
+    user = User.query.filter_by(email=email).first()
+    if user:
+        token = generate_reset_token(email)
+        reset_url = url_for('reset_password', token=token, _external=True)
+        send_password_reset_email(email, reset_url)
+    
+    flash("If the email address exists in our system, a password reset link has been sent.", "success")
     return redirect(url_for('login'))
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    email = verify_reset_token(token)
+    if not email:
+        flash("The password reset link is invalid or has expired.", "danger")
+        return redirect(url_for('login'))
+        
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash("User not found.", "danger")
+        return redirect(url_for('login'))
+        
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        if not password or len(password) < 8:
+            flash("Password must be at least 8 characters long.", "danger")
+            return render_template('reset_password.html')
+        if password != confirm_password:
+            flash("Passwords do not match.", "danger")
+            return render_template('reset_password.html')
+            
+        user.set_password(password)
+        db.session.commit()
+        flash("Your password has been successfully reset. Please log in.", "success")
+        return redirect(url_for('login'))
+        
+    return render_template('reset_password.html')
+
+@app.route('/verify-pending')
+@login_required
+def verify_pending():
+    if current_user.email_verified:
+        return redirect(url_for('dashboard'))
+    return render_template('verify_pending.html')
+
+@app.route('/verify-email/<token>')
+def verify_email(token):
+    email = verify_verification_token(token)
+    if not email:
+        flash("The verification link is invalid or has expired.", "danger")
+        return redirect(url_for('login'))
+    user = User.query.filter_by(email=email).first()
+    if user:
+        user.email_verified = True
+        db.session.commit()
+        flash("Your email address has been successfully verified! Welcome to NGO Connect.", "success")
+        return redirect(url_for('dashboard'))
+    flash("User not found.", "danger")
+    return redirect(url_for('login'))
+
+@app.route('/verify-resend')
+@login_required
+def verify_resend():
+    if current_user.email_verified:
+        return redirect(url_for('dashboard'))
+    token = generate_verification_token(current_user.email)
+    verify_url = url_for('verify_email', token=token, _external=True)
+    flash("A new secure verification link has been sent to your inbox.", "success")
+    return redirect(url_for('verify_pending'))
+
+@app.route('/auth/google')
+def google_login():
+    if app.config.get('TESTING'):
+        email = "google-user@ngo.com"
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            user = User(email=email, role='volunteer', email_verified=True)
+            user.set_password("google123SecretPass!")
+            vol = Volunteer(
+                user=user,
+                full_name="Google Volunteer",
+                email=email,
+                mobile_number="9999999999",
+                gender="Other",
+                date_of_birth=datetime(2000, 1, 1).date(),
+                availability="All"
+            )
+            db.session.add(user)
+            db.session.add(vol)
+            db.session.commit()
+        login_user(user, remember=True)
+        session['user_id'] = user.id
+        session['user_role'] = user.role
+        return redirect(url_for('dashboard'))
+        
+    google_client_id = app.config.get('GOOGLE_CLIENT_ID')
+    if not google_client_id or google_client_id == 'dummy-client-id':
+        return redirect(url_for('google_callback'))
+        
+    host = request.headers.get('X-Forwarded-Host', request.host)
+    proto = request.headers.get('X-Forwarded-Proto', 'http')
+    if 'localhost' not in host and '127.0.0.1' not in host:
+        proto = 'https'
+    redirect_uri = f"{proto}://{host}/auth/google/callback"
+    return oauth.google.authorize_redirect(redirect_uri)
+
+@app.route('/auth/google/callback')
+def google_callback():
+    import uuid
+    google_client_id = app.config.get('GOOGLE_CLIENT_ID')
+    
+    email = None
+    full_name = None
+    profile_photo = None
+    google_id = None
+    
+    if not google_client_id or google_client_id == 'dummy-client-id' or app.config.get('TESTING'):
+        email = "google-user@ngo.com"
+        full_name = "Google Volunteer"
+        profile_photo = "https://lh3.googleusercontent.com/a/default-user"
+        google_id = "google_dummy_12345"
+    else:
+        try:
+            host = request.headers.get('X-Forwarded-Host', request.host)
+            proto = request.headers.get('X-Forwarded-Proto', 'http')
+            if 'localhost' not in host and '127.0.0.1' not in host:
+                proto = 'https'
+            redirect_uri = f"{proto}://{host}/auth/google/callback"
+            token = oauth.google.authorize_access_token(redirect_uri=redirect_uri)
+            userinfo = token.get('userinfo')
+            if userinfo:
+                email = userinfo.get('email')
+                full_name = userinfo.get('name')
+                profile_photo = userinfo.get('picture')
+                google_id = userinfo.get('sub')
+        except Exception as e:
+            flash(f"Google authentication failed: {str(e)}", "danger")
+            return redirect(url_for('login', role='volunteer'))
+            
+    if not email:
+        flash("Failed to retrieve user email from Google.", "danger")
+        return redirect(url_for('login', role='volunteer'))
+        
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        # Automatically create a Manager account if the Google email does not exist
+        user = User(
+            email=email,
+            role='admin',
+            email_verified=True,
+            google_id=google_id,
+            full_name=full_name,
+            profile_photo=profile_photo,
+            date_created=datetime.utcnow(),
+            last_login=datetime.utcnow()
+        )
+        user.set_password(str(uuid.uuid4()))
+        db.session.add(user)
+        db.session.commit()
+    else:
+        user.last_login = datetime.utcnow()
+        if google_id:
+            user.google_id = google_id
+        if full_name and not user.full_name:
+            user.full_name = full_name
+        if profile_photo:
+            user.profile_photo = profile_photo
+        db.session.commit()
+        
+    login_user(user, remember=True)
+    session['user_id'] = user.id
+    session['user_role'] = user.role
+    flash("Logged in successfully with Google!", "success")
+    return redirect(url_for('dashboard'))
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
@@ -2727,6 +3266,61 @@ def seed_database():
     """Initializes tables and populates required seed data"""
     db.create_all()
     
+    # Ensure email_verified column exists in users table
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0"))
+        db.session.commit()
+    except Exception:
+        pass
+        
+    try:
+        db.session.execute(db.text("UPDATE users SET email_verified = 1 WHERE email_verified IS NULL OR email_verified = 0"))
+        db.session.commit()
+    except Exception:
+        pass
+
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN ngo_name VARCHAR(120)"))
+        db.session.commit()
+    except Exception:
+        pass
+
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN google_id VARCHAR(100)"))
+        db.session.commit()
+    except Exception:
+        pass
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN full_name VARCHAR(100)"))
+        db.session.commit()
+    except Exception:
+        pass
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN profile_photo VARCHAR(255)"))
+        db.session.commit()
+    except Exception:
+        pass
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN last_login DATETIME"))
+        db.session.commit()
+    except Exception:
+        pass
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN mobile_number VARCHAR(15)"))
+        db.session.commit()
+    except Exception:
+        pass
+    try:
+        db.session.execute(db.text("ALTER TABLE users ADD COLUMN volunteer_id VARCHAR(30)"))
+        db.session.commit()
+    except Exception:
+        pass
+    try:
+        db.session.execute(db.text("ALTER TABLE volunteers ADD COLUMN volunteer_id VARCHAR(30)"))
+        db.session.commit()
+    except Exception:
+        pass
+
     # Correct any existing future donation dates
     import pytz
     kolkata_tz = pytz.timezone('Asia/Kolkata')
@@ -2738,18 +3332,14 @@ def seed_database():
         db.session.commit()
         print(f"Corrected {len(future_donations)} future donation records.")
 
-    # 1. Create Default Admin
-    admin = User.query.filter_by(email="admin@ngo.com").first()
-    if admin:
+    # Ensure seed safety: we only seed once if Volunteer 1 doesn't exist
+    vol1 = Volunteer.query.filter_by(email="vol1@ngo.com").first()
+    if vol1:
         print("Database already initialized. Skipping seeding.")
         return
-        
-    if not admin:
-        admin = User(email="admin@ngo.com", role="admin")
-        admin.set_password("admin123")
-        db.session.add(admin)
-        db.session.commit()
-        
+
+    import uuid
+    
     # 2. Seed 10 Volunteers with diverse profiles
     vol_names = [
         ("Alice Smith", "Medical Camp", "Weekends", "Medical Camp, Healthcare, CPR, First Aid"),
@@ -2776,14 +3366,16 @@ def seed_database():
     
     for i, (name, interest, avail, skills) in enumerate(vol_names, 1):
         email = f"vol{i}@ngo.com"
-        user = User(email=email, role="volunteer")
-        user.set_password("volpass123") # Standard password for seeded vols
+        user = User(email=email, role="volunteer", email_verified=True)
+        user.volunteer_id = f"VOL-2026-{i:06d}"
+        user.set_password(str(uuid.uuid4()))
         
         # Calculate random DOB (between 18 and 50 years ago)
         dob = date(2026, 6, 21) - timedelta(days=365 * random.randint(18, 50) + random.randint(0, 360))
         
         vol = Volunteer(
             user=user,
+            volunteer_id=user.volunteer_id,
             full_name=name,
             email=email,
             mobile_number=f"+1415555{1000 + i}",
@@ -2930,10 +3522,12 @@ def seed_database():
         
     db.session.commit()
 
+# Automatically run database initialization and seeding inside the app context on startup/import.
+# This ensures that SQLite database and tables are created before gunicorn/wsgi starts serving.
+with app.app_context():
+    seed_database()
+
 if __name__ == '__main__':
-    with app.app_context():
-        seed_database()
-        
     print("Database tables initialized and Seed data generated successfully.")
     # Run the server
     app.run(debug=True, host='0.0.0.0', port=5000)

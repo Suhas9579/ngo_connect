@@ -406,6 +406,7 @@ class TestNGOUpdates(unittest.TestCase):
         resp_logs = client.get('/attendance/api/logs')
         self.assertEqual(resp_logs.status_code, 200)
         logs = resp_logs.json['logs']
+
         
         found_att = None
         for l in logs:
@@ -415,6 +416,39 @@ class TestNGOUpdates(unittest.TestCase):
                 
         self.assertIsNotNone(found_att)
         self.assertEqual(found_att['check_in_time'], "📅 10 Jul 2026 • 🕘 08:32 AM IST")
+
+    def test_authentication_features(self):
+        client = app.test_client()
+        
+        # 1. Landing Page
+        resp_landing = client.get('/')
+        self.assertEqual(resp_landing.status_code, 200)
+        self.assertIn(b"NGO Connect", resp_landing.data)
+        
+        # 2. Google OAuth
+        resp_google = client.get('/auth/google')
+        self.assertEqual(resp_google.status_code, 302)
+        self.assertIn('/dashboard', resp_google.headers['Location'])
+        
+        # Logout the google user
+        client.get('/logout')
+        
+        # 3. Verification Pending page redirect
+        app.config['BYPASS_EMAIL_VERIFICATION'] = False
+        try:
+            unverified_user = User.query.filter_by(email="unver@ngo.com").first()
+            if not unverified_user:
+                unverified_user = User(email="unver@ngo.com", role="volunteer", email_verified=False)
+                unverified_user.set_password("pass123")
+                db.session.add(unverified_user)
+                db.session.commit()
+                
+            client.post('/login', data={'email': 'unver@ngo.com', 'password': 'pass123'})
+            resp_redirect = client.get('/dashboard')
+            self.assertEqual(resp_redirect.status_code, 302)
+            self.assertIn('/verify-pending', resp_redirect.headers['Location'])
+        finally:
+            app.config['BYPASS_EMAIL_VERIFICATION'] = True
 
 if __name__ == '__main__':
     unittest.main()

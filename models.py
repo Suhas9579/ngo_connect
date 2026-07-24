@@ -15,22 +15,46 @@ class User(db.Model, UserMixin):
     role = db.Column(db.String(20), nullable=False, default='volunteer') # 'admin' or 'volunteer'
     is_active = db.Column(db.Boolean, default=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
+    email_verified = db.Column(db.Boolean, default=False, nullable=True)
+    ngo_name = db.Column(db.String(120), nullable=True)
+    google_id = db.Column(db.String(100), nullable=True, unique=True)
+    full_name = db.Column(db.String(100), nullable=True)
+    profile_photo = db.Column(db.String(255), nullable=True)
+    last_login = db.Column(db.DateTime, nullable=True)
+    mobile_number = db.Column(db.String(15), nullable=True)
+    volunteer_id = db.Column(db.String(30), unique=True, nullable=True)
     
     # Relationships
     volunteer = db.relationship('Volunteer', backref='user', uselist=False, cascade="all, delete-orphan")
     notifications = db.relationship('Notification', backref='user', lazy='dynamic', cascade="all, delete-orphan")
     
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        try:
+            import bcrypt
+            salt = bcrypt.gensalt()
+            self.password_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+        except (ImportError, AttributeError):
+            from werkzeug.security import generate_password_hash
+            self.password_hash = generate_password_hash(password)
         
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        import bcrypt
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+        except Exception:
+            # Fallback to check if it matches legacy generate_password_hash from werkzeug
+            from werkzeug.security import check_password_hash
+            try:
+                return check_password_hash(self.password_hash, password)
+            except Exception:
+                return False
 
 class Volunteer(db.Model):
     __tablename__ = 'volunteers'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    volunteer_id = db.Column(db.String(30), unique=True, nullable=True)
     full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     mobile_number = db.Column(db.String(10), nullable=False)

@@ -35,21 +35,61 @@ class RegisterForm(FlaskForm):
         EqualTo('password', message='Passwords must match.')
     ])
     
-    # Volunteer fields
+    # Required registration fields
     full_name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
+    ngo_name = StringField('NGO Name', validators=[Optional(), Length(max=120)])
     mobile_number = StringField('Mobile Number', validators=[DataRequired(), validate_indian_mobile])
-    address = StringField('Address', validators=[Optional(), Length(max=255)])
-    gender = SelectField('Gender', choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], validators=[DataRequired()])
-    date_of_birth = DateField('Date of Birth', format='%Y-%m-%d', validators=[DataRequired()])
-    skills = StringField('Skills (comma-separated)', validators=[Optional(), Length(max=255)])
-    interests = StringField('Interests (comma-separated)', validators=[Optional(), Length(max=255)])
-    availability = SelectField('Availability', choices=[
-        ('Weekdays', 'Weekdays'),
-        ('Weekends', 'Weekends'),
-        ('All', 'All Availability'),
-        ('Evenings', 'Evenings')
-    ], validators=[DataRequired()])
+    accept_terms = BooleanField('I accept the Terms and Conditions', validators=[DataRequired(message='You must accept the terms to register.')])
     
+    submit = SubmitField('Register')
+
+class ManagerLoginForm(FlaskForm):
+    email = StringField('Email Address', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember Me')
+    submit = SubmitField('Log In')
+
+class VolunteerLoginForm(FlaskForm):
+    volunteer_id = StringField('Volunteer ID', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember Me')
+    submit = SubmitField('Log In')
+
+class ManagerRegisterForm(FlaskForm):
+    ngo_name = StringField('NGO Name', validators=[DataRequired(), Length(max=120)])
+    full_name = StringField('Manager Full Name', validators=[DataRequired(), Length(max=100)])
+    email = StringField('Email Address', validators=[DataRequired(), Email(), Length(max=120)])
+    mobile_number = StringField('Mobile Number', validators=[DataRequired(), validate_indian_mobile])
+    password = PasswordField('Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters long.'),
+        Regexp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', 
+               message='Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.')
+    ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+        DataRequired(),
+        EqualTo('password', message='Passwords must match.')
+    ])
+    accept_terms = BooleanField('I accept the Terms and Conditions', validators=[DataRequired(message='You must accept the terms to register.')])
+    submit = SubmitField('Register')
+
+class VolunteerRegisterForm(FlaskForm):
+    full_name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
+    email = StringField('Email Address', validators=[DataRequired(), Email(), Length(max=120)])
+    mobile_number = StringField('Mobile Number', validators=[DataRequired(), validate_indian_mobile])
+    address = StringField('Address', validators=[DataRequired(), Length(max=255)])
+    skills = StringField('Skills (optional, comma-separated)', validators=[Optional(), Length(max=255)])
+    password = PasswordField('Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters long.'),
+        Regexp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', 
+               message='Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.')
+    ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+        DataRequired(),
+        EqualTo('password', message='Passwords must match.')
+    ])
+    accept_terms = BooleanField('I accept the Terms and Conditions', validators=[DataRequired(message='You must accept the terms to register.')])
     submit = SubmitField('Register')
 
 class VolunteerProfileForm(FlaskForm):

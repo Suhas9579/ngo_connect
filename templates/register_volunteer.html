@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Account - NGO Connect</title>
+    <title>Volunteer Registration - NGO Connect</title>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Bootstrap CSS -->
@@ -32,6 +32,74 @@
             top: 20px;
             right: 20px;
             z-index: 1055;
+        }
+            /* Animated Checkmark CSS */
+        .success-animation-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .checkmark-svg {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 2;
+            stroke: #10b981;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px #10b981;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+        .checkmark-circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 2;
+            stroke-miterlimit: 10;
+            stroke: #10b981;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+        .checkmark-check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            stroke: #10b981;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+        @keyframes stroke {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+        @keyframes fill {
+            100% {
+                box-shadow: inset 0px 0px 0px 40px rgba(16, 185, 129, 0.15);
+            }
+        }
+        @keyframes scale {
+            0%, 100% {
+                transform: none;
+            }
+            50% {
+                transform: scale3d(1.1, 1.1, 1);
+            }
+        }
+        
+        /* Premium toast styling */
+        .toast {
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            border-radius: 12px !important;
+            backdrop-filter: blur(8px);
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -73,30 +141,10 @@
                             <div class="logo-circle-auth" style="width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                                 <img src="{{ url_for('static', filename='images/logo.png') }}" alt="NGO Connect Logo" style="width: 100%; height: 100%; object-fit: contain;">
                             </div>
-                            <h2 class="fw-bold text-dark mt-2">NGO Connect</h2>
-                            {% if role == 'manager' %}
-                                <span class="badge bg-success-soft text-success rounded-pill px-3 py-1.5 mt-2 fw-semibold">🟢 NGO Manager Portal</span>
-                            {% else %}
-                                <span class="badge bg-primary-soft text-primary rounded-pill px-3 py-1.5 mt-2 fw-semibold">🔵 Volunteer Portal</span>
-                            {% endif %}
-                            <p class="text-secondary mt-3">Join our team of dedicated community helpers</p>
+                            <h2 class="fw-bold text-dark mt-2">Create Account</h2>
+                            <div class="fs-6 fw-semibold text-primary mt-1">🔵 Register Volunteer</div>
+                            <p class="text-secondary mt-2">Create a volunteer account.</p>
                         </div>
-                        
-                        {% if role == 'volunteer' or not role %}
-                            <!-- Google Sign-In button -->
-                            <div class="d-grid mb-3">
-                                <a href="{{ url_for('google_login') }}" class="btn btn-outline-secondary py-2.5 d-flex align-items-center justify-content-center gap-2 border fw-semibold" onclick="showSpinner()">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-google" viewBox="0 0 16 16">
-                                        <path d="M15.545 6.558a9.42 9.42 0 0 1 .139 1.626c0 2.434-.87 4.492-2.384 5.885h.002C11.978 15.292 10.158 16 8 16A8 8 0 1 1 8 0c2.204 0 4.079.815 5.564 2.25l-2.221 2.221C10.298 3.394 9.282 3 8 3c-2.433 0-4.429 2.017-4.429 4.5S5.567 12 8 12c2.784 0 4.108-1.921 4.275-3.05H8V6.558h7.545z"/>
-                                    </svg>
-                                    Continue with Google
-                                </a>
-                            </div>
-                            <div class="text-center text-muted my-3 position-relative mb-4">
-                                <hr class="m-0">
-                                <span class="px-2 position-absolute top-50 start-50 translate-middle small text-uppercase" style="background-color: var(--card-bg); color: var(--text-color);">Or</span>
-                            </div>
-                        {% endif %}
 
                         <form method="POST" action="{{ url_for('register', role=role) }}" class="needs-validation" novalidate onsubmit="showSpinner()">
                             {{ form.csrf_token }}
@@ -106,7 +154,7 @@
                                 <label for="full_name" class="form-label fw-semibold">Full Name</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
-                                    {{ form.full_name(class="form-control border-start-0 ps-0", placeholder="Jane Doe", id="full_name") }}
+                                    {{ form.full_name(class="form-control border-start-0 ps-0", placeholder="Jane Smith", id="full_name") }}
                                 </div>
                                 {% if form.full_name.errors %}
                                     {% for error in form.full_name.errors %}
@@ -114,27 +162,13 @@
                                     {% endfor %}
                                 {% endif %}
                             </div>
-                            
-                            <!-- NGO Name -->
-                            <div class="mb-3">
-                                <label for="ngo_name" class="form-label fw-semibold">NGO Name</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-building text-muted"></i></span>
-                                    {{ form.ngo_name(class="form-control border-start-0 ps-0", placeholder="Helping Hands NGO", id="ngo_name") }}
-                                </div>
-                                {% if form.ngo_name.errors %}
-                                    {% for error in form.ngo_name.errors %}
-                                        <div class="text-danger small mt-1">{{ error }}</div>
-                                    {% endfor %}
-                                {% endif %}
-                            </div>
-                            
-                            <!-- Email -->
+
+                            <!-- Email Address -->
                             <div class="mb-3">
                                 <label for="email" class="form-label fw-semibold">Email Address</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
-                                    {{ form.email(class="form-control border-start-0 ps-0", placeholder="name@domain.com", id="email") }}
+                                    {{ form.email(class="form-control border-start-0 ps-0", placeholder="name@ngo.com", id="email") }}
                                 </div>
                                 {% if form.email.errors %}
                                     {% for error in form.email.errors %}
@@ -142,7 +176,7 @@
                                     {% endfor %}
                                 {% endif %}
                             </div>
-                            
+
                             <!-- Mobile Number -->
                             <div class="mb-3">
                                 <label for="mobile_number" class="form-label fw-semibold">Mobile Number</label>
@@ -156,7 +190,35 @@
                                     {% endfor %}
                                 {% endif %}
                             </div>
-                            
+
+                            <!-- Address -->
+                            <div class="mb-3">
+                                <label for="address" class="form-label fw-semibold">Address</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-geo-alt text-muted"></i></span>
+                                    {{ form.address(class="form-control border-start-0 ps-0", placeholder="123 Main St, City Center", id="address") }}
+                                </div>
+                                {% if form.address.errors %}
+                                    {% for error in form.address.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+
+                            <!-- Skills -->
+                            <div class="mb-3">
+                                <label for="skills" class="form-label fw-semibold">Skills (optional)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-tools text-muted"></i></span>
+                                    {{ form.skills(class="form-control border-start-0 ps-0", placeholder="First Aid, Teaching, Driving", id="skills") }}
+                                </div>
+                                {% if form.skills.errors %}
+                                    {% for error in form.skills.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+
                             <!-- Password -->
                             <div class="mb-3">
                                 <label for="password" class="form-label fw-semibold">Password</label>
@@ -175,7 +237,7 @@
                                     {% endfor %}
                                 {% endif %}
                             </div>
-                            
+
                             <!-- Confirm Password -->
                             <div class="mb-4">
                                 <label for="confirm_password" class="form-label fw-semibold">Confirm Password</label>
@@ -189,7 +251,7 @@
                                     {% endfor %}
                                 {% endif %}
                             </div>
-                            
+
                             <!-- Accept Terms -->
                             <div class="mb-4 form-check text-start">
                                 {{ form.accept_terms(class="form-check-input", id="accept_terms") }}
@@ -208,18 +270,18 @@
                                 {{ form.submit(class="btn btn-primary py-2.5 btn-lg fs-6") }}
                             </div>
                         </form>
-                        
+
                         <div class="text-center mt-4 border-top pt-3">
                             <span class="text-muted">Already registered?</span>
                             <a href="{{ url_for('login', role=role) }}" class="text-primary fw-bold text-decoration-none ms-1">Log in here</a>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="text-center mt-4">
                     <a href="{{ url_for('login') }}" class="text-secondary small text-decoration-none"><i class="bi bi-arrow-left me-1"></i> Switch Role Selection</a>
                 </div>
-                
+
             </div>
         </div>
     </div>
@@ -229,48 +291,91 @@
         function showSpinner() {
             document.getElementById('loadingSpinner').style.display = 'flex';
         }
-        
+
         function checkPasswordStrength(password) {
-            const bar = document.getElementById('password-strength-bar');
-            const text = document.getElementById('password-strength-text');
-            let strength = 0;
-            
-            if (password.length >= 8) strength += 25;
-            if (/[A-Z]/.test(password)) strength += 25;
-            if (/[0-9]/.test(password)) strength += 25;
-            if (/[^A-Za-z0-9]/.test(password)) strength += 25;
-            
-            bar.style.width = strength + '%';
-            
-            if (strength === 0) {
-                bar.className = 'progress-bar bg-danger';
-                text.textContent = '';
-            } else if (strength <= 25) {
-                bar.className = 'progress-bar bg-danger';
-                text.className = 'form-text text-danger small';
-                text.textContent = 'Weak';
-            } else if (strength <= 50) {
-                bar.className = 'progress-bar bg-warning';
-                text.className = 'form-text text-warning small';
-                text.textContent = 'Fair';
-            } else if (strength <= 75) {
-                bar.className = 'progress-bar bg-info';
-                text.className = 'form-text text-info small';
-                text.textContent = 'Good';
+            var strengthBar = document.getElementById("password-strength-bar");
+            var strengthText = document.getElementById("password-strength-text");
+            var score = 0;
+
+            if (password.length >= 8) score++;
+            if (/[A-Z]/.test(password)) score++;
+            if (/[a-z]/.test(password)) score++;
+            if (/[0-9]/.test(password)) score++;
+            if (/[@$!%*?&]/.test(password)) score++;
+
+            var pct = score * 20;
+            strengthBar.style.width = pct + "%";
+
+            if (score <= 2) {
+                strengthBar.className = "progress-bar bg-danger";
+                strengthText.innerText = "Weak";
+                strengthText.className = "form-text text-danger";
+            } else if (score <= 4) {
+                strengthBar.className = "progress-bar bg-warning";
+                strengthText.innerText = "Good";
+                strengthText.className = "form-text text-warning";
             } else {
-                bar.className = 'progress-bar bg-success';
-                text.className = 'form-text text-success small';
-                text.textContent = 'Strong';
+                strengthBar.className = "progress-bar bg-success";
+                strengthText.innerText = "Strong";
+                strengthText.className = "form-text text-success";
             }
         }
-
-        // Auto-initialize toasts
-        document.addEventListener('DOMContentLoaded', function () {
-            var toastElList = [].slice.call(document.querySelectorAll('.toast'));
-            var toastList = toastElList.map(function (toastEl) {
-                return new bootstrap.Toast(toastEl, { autohide: true, delay: 5000 });
-            });
+    </script>
+    {% if show_success_modal %}
+    <!-- Success Celebration Modal -->
+    <div class="modal fade show" id="successModal" tabindex="-1" style="display: block; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); z-index: 1060;" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg text-center p-5 animate-scale" style="border-radius: 24px; background-color: var(--card-bg); color: var(--text-color);">
+                <div class="modal-body p-0">
+                    <div class="success-animation-wrapper mb-4">
+                        <svg class="checkmark-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+                            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                        </svg>
+                    </div>
+                    
+                    <h3 class="fw-bold text-dark mb-2">
+                        {% if success_type == 'register' %}
+                            🎉 Account Created Successfully
+                        {% else %}
+                            ✅ Login Successful
+                        {% endif %}
+                    </h3>
+                    <p class="text-secondary fs-5 mb-1">
+                        {% if success_type == 'register' %}
+                            Welcome to NGO Connect,
+                        {% else %}
+                            Welcome back,
+                        {% endif %}
+                        <span class="fw-bold text-primary">{{ success_name }}</span>
+                    </p>
+                    <p class="text-muted small italic">"Glad to see you again!"</p>
+                    
+                    <div class="mt-4">
+                        <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                        <span class="text-muted small">Redirecting to Dashboard...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            {% if success_type == 'register' %}
+                confetti({
+                    particleCount: 150,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            {% endif %}
+            
+            setTimeout(function() {
+                window.location.href = "{{ redirect_url }}";
+            }, 2000);
         });
     </script>
+    {% endif %}
 </body>
 </html>

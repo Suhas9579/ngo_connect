@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Successful - NGO Connect</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+    <style>
+        .id-badge {
+            background-color: rgba(59, 130, 246, 0.05);
+            border: 2px dashed #3b82f6;
+            border-radius: 12px;
+            padding: 20px;
+            font-size: 28px;
+            font-weight: 700;
+            color: #2563eb;
+            letter-spacing: 1px;
+            display: inline-block;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body class="auth-wrapper">
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                
+                <div class="card auth-card border-0 shadow-lg text-center p-4 p-md-5">
+                    <div class="card-body">
+                        <!-- Success Checkmark -->
+                        <div class="icon-circle bg-primary-soft text-primary mx-auto mb-4" style="width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; background-color: rgba(37, 99, 235, 0.1);">
+                            <i class="bi bi-patch-check-fill text-primary"></i>
+                        </div>
+                        
+                        <h2 class="fw-bold text-dark mb-2">Registration Complete!</h2>
+                        <p class="text-secondary mb-4">Your volunteer account has been successfully created. Please save your unique Volunteer ID below:</p>
+                        
+                        <div>
+                            <div class="id-badge" id="volunteerIdBadge">{{ volunteer_id }}</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <button class="btn btn-outline-primary btn-sm" onclick="copyId()">
+                                <i class="bi bi-clipboard me-1"></i> Copy Volunteer ID
+                            </button>
+                        </div>
+                        
+                        <div class="alert alert-info border-0 text-start small mb-4">
+                            <i class="bi bi-info-circle-fill me-2"></i><strong>Important:</strong> You must use this Volunteer ID and your chosen password to log into the Volunteer Portal. We have also sent a verification email to your registered inbox.
+                        </div>
+                        
+                        <div class="d-grid">
+                            <a href="{{ url_for('login', role='volunteer') }}" class="btn btn-primary py-2.5">Proceed to Login</a>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyId() {
+            var idText = document.getElementById("volunteerIdBadge").innerText;
+            navigator.clipboard.writeText(idText).then(function() {
+                alert("Volunteer ID copied to clipboard!");
+            }, function(err) {
+                console.error("Could not copy text: ", err);
+            });
+        }
+    </script>
+</body>
+</html>
