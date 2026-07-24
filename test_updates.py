@@ -425,15 +425,7 @@ class TestNGOUpdates(unittest.TestCase):
         self.assertEqual(resp_landing.status_code, 200)
         self.assertIn(b"NGO Connect", resp_landing.data)
         
-        # 2. Google OAuth
-        resp_google = client.get('/auth/google')
-        self.assertEqual(resp_google.status_code, 302)
-        self.assertIn('/dashboard', resp_google.headers['Location'])
-        
-        # Logout the google user
-        client.get('/logout')
-        
-        # 3. Verification Pending page redirect
+        # 2. Verification Pending page redirect
         app.config['BYPASS_EMAIL_VERIFICATION'] = False
         try:
             unverified_user = User.query.filter_by(email="unver@ngo.com").first()

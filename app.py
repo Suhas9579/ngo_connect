@@ -66,22 +66,6 @@ app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS') or True
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER') or 'no-reply@ngoconnect.org'
-app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID') or 'dummy-client-id'
-app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET') or 'dummy-client-secret'
-
-from authlib.integrations.flask_client import OAuth
-oauth = OAuth(app)
-oauth.register(
-    name='google',
-    client_id=app.config.get('GOOGLE_CLIENT_ID'),
-    client_secret=app.config.get('GOOGLE_CLIENT_SECRET'),
-    access_token_url='https://oauth2.googleapis.com/token',
-    access_token_params=None,
-    authorize_url='https://accounts.google.com/o/oauth2/v2/auth',
-    authorize_params={'prompt': 'select_account'},
-    client_kwargs={'scope': 'openid email profile'},
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration'
-)
 
 import pytz
 
@@ -1056,111 +1040,6 @@ def verify_resend():
     verify_url = url_for('verify_email', token=token, _external=True)
     flash("A new secure verification link has been sent to your inbox.", "success")
     return redirect(url_for('verify_pending'))
-
-@app.route('/auth/google')
-def google_login():
-    if app.config.get('TESTING'):
-        email = "google-user@ngo.com"
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            user = User(email=email, role='volunteer', email_verified=True)
-            user.set_password("google123SecretPass!")
-            vol = Volunteer(
-                user=user,
-                full_name="Google Volunteer",
-                email=email,
-                mobile_number="9999999999",
-                gender="Other",
-                date_of_birth=datetime(2000, 1, 1).date(),
-                availability="All"
-            )
-            db.session.add(user)
-            db.session.add(vol)
-            db.session.commit()
-        login_user(user, remember=True)
-        session['user_id'] = user.id
-        session['user_role'] = user.role
-        return redirect(url_for('dashboard'))
-        
-    google_client_id = app.config.get('GOOGLE_CLIENT_ID')
-    if not google_client_id or google_client_id == 'dummy-client-id':
-        return redirect(url_for('google_callback'))
-        
-    host = request.headers.get('X-Forwarded-Host', request.host)
-    proto = request.headers.get('X-Forwarded-Proto', 'http')
-    if 'localhost' not in host and '127.0.0.1' not in host:
-        proto = 'https'
-    redirect_uri = f"{proto}://{host}/auth/google/callback"
-    return oauth.google.authorize_redirect(redirect_uri)
-
-@app.route('/auth/google/callback')
-def google_callback():
-    import uuid
-    google_client_id = app.config.get('GOOGLE_CLIENT_ID')
-    
-    email = None
-    full_name = None
-    profile_photo = None
-    google_id = None
-    
-    if not google_client_id or google_client_id == 'dummy-client-id' or app.config.get('TESTING'):
-        email = "google-user@ngo.com"
-        full_name = "Google Volunteer"
-        profile_photo = "https://lh3.googleusercontent.com/a/default-user"
-        google_id = "google_dummy_12345"
-    else:
-        try:
-            host = request.headers.get('X-Forwarded-Host', request.host)
-            proto = request.headers.get('X-Forwarded-Proto', 'http')
-            if 'localhost' not in host and '127.0.0.1' not in host:
-                proto = 'https'
-            redirect_uri = f"{proto}://{host}/auth/google/callback"
-            token = oauth.google.authorize_access_token(redirect_uri=redirect_uri)
-            userinfo = token.get('userinfo')
-            if userinfo:
-                email = userinfo.get('email')
-                full_name = userinfo.get('name')
-                profile_photo = userinfo.get('picture')
-                google_id = userinfo.get('sub')
-        except Exception as e:
-            flash(f"Google authentication failed: {str(e)}", "danger")
-            return redirect(url_for('login', role='volunteer'))
-            
-    if not email:
-        flash("Failed to retrieve user email from Google.", "danger")
-        return redirect(url_for('login', role='volunteer'))
-        
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        # Automatically create a Manager account if the Google email does not exist
-        user = User(
-            email=email,
-            role='admin',
-            email_verified=True,
-            google_id=google_id,
-            full_name=full_name,
-            profile_photo=profile_photo,
-            date_created=datetime.utcnow(),
-            last_login=datetime.utcnow()
-        )
-        user.set_password(str(uuid.uuid4()))
-        db.session.add(user)
-        db.session.commit()
-    else:
-        user.last_login = datetime.utcnow()
-        if google_id:
-            user.google_id = google_id
-        if full_name and not user.full_name:
-            user.full_name = full_name
-        if profile_photo:
-            user.profile_photo = profile_photo
-        db.session.commit()
-        
-    login_user(user, remember=True)
-    session['user_id'] = user.id
-    session['user_role'] = user.role
-    flash("Logged in successfully with Google!", "success")
-    return redirect(url_for('dashboard'))
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
