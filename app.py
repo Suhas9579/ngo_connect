@@ -22,8 +22,22 @@ def get_local_ip():
     return IP
 
 def get_external_attendance_url(event_id):
-    """Generate dynamic QR URLs using local machine IP (e.g. http://192.168.x.x:5000/attendance/scan/<id>)"""
+    """Generate dynamic QR URLs using public host URL, BASE_URL env, or fallback"""
+    base_url = os.environ.get('BASE_URL')
+    if base_url:
+        return f"{base_url.rstrip('/')}/attendance/scan/{event_id}"
+    
+    try:
+        from flask import request
+        if request and hasattr(request, 'host_url') and request.host_url:
+            return f"{request.host_url.rstrip('/')}/attendance/scan/{event_id}"
+    except Exception:
+        pass
+        
     local_ip = get_local_ip()
+    return f"http://{local_ip}:5000/attendance/scan/{event_id}" 
+
+
     return f"http://{local_ip}:5000/attendance/scan/{event_id}"
 
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_file, abort, session
@@ -2338,12 +2352,21 @@ def scan_attendance(event_id):
     
     vol = None
     if volunteer_code:
-        digits = "".join([c for c in volunteer_code if c.isdigit()])
-        if digits:
-            try:
-                vol = Volunteer.query.get(int(digits))
-            except Exception:
-                pass
+        vol = Volunteer.query.filter(
+            (Volunteer.volunteer_id == volunteer_code) |
+            (Volunteer.email == volunteer_code) |
+            (Volunteer.mobile_number == volunteer_code)
+        ).first()
+        if not vol:
+            digits = "".join([c for c in volunteer_code if c.isdigit()])
+            if digits:
+                try:
+                    vol = Volunteer.query.filter(
+                        (Volunteer.id == int(digits)) |
+                        (Volunteer.volunteer_id.like(f"%{digits}"))
+                    ).first()
+                except Exception:
+                    pass
                 
     if not vol:
         return render_template(
@@ -2446,7 +2469,7 @@ def scan_attendance(event_id):
         event=event,
         success=True,
         volunteer_name=vol.full_name,
-        volunteer_id=vol.id,
+        volunteer_id=vol.volunteer_id or f"VOL-2026-{vol.id:06d}",
         checkin_time=format_full_attendance_date(checkin_time)
     )
 
@@ -3212,6 +3235,46 @@ def seed_database():
         print(f"Corrected {len(future_donations)} future donation records.")
 
     # Ensure seed safety: we only seed once if Volunteer 1 doesn't exist
+    # Migration: Automatically update any existing non-Indian / demo phone numbers
+    try:
+        indian_defaults = [
+            "9876543201", "9876543202", "9123456783", "9956382204", "9812456732",
+            "9345678123", "9845012345", "9711223344", "9620112233", "9538445566"
+        ]
+        all_vols = Volunteer.query.all()
+        used_mobiles = set()
+        
+        for v in all_vols:
+            clean = "".join([c for c in (v.mobile_number or "") if c.isdigit()])
+            if len(clean) == 10 and clean[0] in '6789':
+                used_mobiles.add(clean)
+                
+        base_counter = 9876543200
+        for idx, v in enumerate(all_vols):
+            clean = "".join([c for c in (v.mobile_number or "") if c.isdigit()])
+            if len(clean) != 10 or clean[0] not in '6789' or (clean in used_mobiles and clean != v.mobile_number):
+                if idx < len(indian_defaults) and indian_defaults[idx] not in used_mobiles:
+                    new_num = indian_defaults[idx]
+                else:
+                    base_counter += 1
+                    new_num = str(base_counter)
+                    while new_num in used_mobiles:
+                        base_counter += 1
+                        new_num = str(base_counter)
+                
+                v.mobile_number = new_num
+                used_mobiles.add(new_num)
+                if v.user:
+                    v.user.mobile_number = new_num
+                elif v.user_id:
+                    u = User.query.get(v.user_id)
+                    if u:
+                        u.mobile_number = new_num
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Phone migration info: {e}")
+
     vol1 = Volunteer.query.filter_by(email="vol1@ngo.com").first()
     if vol1:
         print("Database already initialized. Skipping seeding.")
@@ -3220,6 +3283,10 @@ def seed_database():
     import uuid
     
     # 2. Seed 10 Volunteers with diverse profiles
+    indian_mobiles = [
+        "9876543201", "9876543202", "9123456783", "9956382204", "9812456732",
+        "9345678123", "9845012345", "9711223344", "9620112233", "9538445566"
+    ]
     vol_names = [
         ("Alice Smith", "Medical Camp", "Weekends", "Medical Camp, Healthcare, CPR, First Aid"),
         ("Bob Johnson", "Education", "Weekdays", "Teaching, Tutoring, Children"),
@@ -3247,6 +3314,7 @@ def seed_database():
         email = f"vol{i}@ngo.com"
         user = User(email=email, role="volunteer", email_verified=True)
         user.volunteer_id = f"VOL-2026-{i:06d}"
+        user.mobile_number = indian_mobiles[i-1]
         user.set_password(str(uuid.uuid4()))
         
         # Calculate random DOB (between 18 and 50 years ago)
@@ -3257,7 +3325,7 @@ def seed_database():
             volunteer_id=user.volunteer_id,
             full_name=name,
             email=email,
-            mobile_number=f"+1415555{1000 + i}",
+            mobile_number=indian_mobiles[i-1],
             address=f"Street {i}, City Center, CA 94103",
             gender="Male" if i % 2 == 0 else "Female",
             date_of_birth=dob,
@@ -3390,7 +3458,7 @@ def seed_database():
         donation_date = date(2026, 6, 21) - timedelta(days=random.randint(1, 90))
         don = Donation(
             donor_name=name,
-            phone_number=f"+1415555{9000 + i}",
+            phone_number=f"98765{9000 + i}",
             email=f"{name.lower().replace(' ', '')}@mail.com",
             amount=amount,
             donation_date=donation_date,

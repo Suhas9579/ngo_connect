@@ -126,11 +126,12 @@
             <!-- Success Screen -->
             <div class="text-center py-3">
                 <span class="text-success fs-1 d-block mb-3"><i class="bi bi-check-circle-fill"></i></span>
-                <h5 class="fw-bold text-success">Attendance Marked Successfully</h5>
+                <h5 class="fw-bold text-success">✓ Attendance Successful</h5>
+                <p class="text-success small mb-0">Attendance Marked Successfully</p>
                 <hr class="my-4">
                 <div class="text-start px-2">
                     <div class="mb-2"><strong>Volunteer Name:</strong> <span class="text-muted">{{ volunteer_name }}</span></div>
-                    <div class="mb-2"><strong>Volunteer ID:</strong> <span class="text-muted">VOL-{{ "%04d" | format(volunteer_id) }}</span></div>
+                    <div class="mb-2"><strong>Volunteer ID:</strong> <span class="text-muted">{{ volunteer_id }}</span></div>
                     <div class="mb-2"><strong>Event Name:</strong> <span class="text-muted">{{ event.name }}</span></div>
                     <div class="mb-3"><strong>Check-In Time:</strong> <span class="text-muted">{{ checkin_time }}</span></div>
                 </div>
